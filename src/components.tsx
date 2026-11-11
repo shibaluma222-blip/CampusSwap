@@ -47,7 +47,7 @@ export function ListingGrid() {
         return (
           <button key={x.id} className="card" onClick={() => A.openListing(x.id)}>
             <div className="ph" style={{ aspectRatio: '1/.9' }}>
-              <ImgPlaceholder />
+              {x.photos[0] ? <img src={x.photos[0]} alt="" loading="lazy" /> : <ImgPlaceholder />}
               <span
                 className="fav"
                 role="button"

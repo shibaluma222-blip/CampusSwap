@@ -1,0 +1,4 @@
+-- Applied to Supabase project pfpkklpjdpbayiqcqqvl via MCP on 2026-11-11.
+-- Tables: listings, listing_photos, favourites (RLS on). Storage bucket: listing-photos (public read, owner-folder writes).
+-- Also widens the signup domain check to allow the reserved demo domain demo.campusswap.test.
+-- See the Supabase migration history for the exact statements; summary kept here for reviewers.

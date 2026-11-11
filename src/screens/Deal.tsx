@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { initials, money, SELLERS } from '../data'
+import { initials, money } from '../data'
 import { Icon, ImgPlaceholder } from '../icons'
 import { Qr } from '../Qr'
-import { useApp } from '../store'
+import { sellerOf, useApp } from '../store'
 import type { Chat as ChatT, Listing } from '../types'
 
 function DealCard({ c, x }: { c: ChatT; x: Listing }) {
@@ -35,7 +35,7 @@ export function Chat() {
   const c = s.chats[s.cur] ?? { msgs: [], unread: 0 }
   useEffect(() => { end.current?.scrollIntoView() }, [c.msgs.length, s.typing])
   if (!x) return null
-  const seller = SELLERS[x.s]
+  const seller = sellerOf(s, x)
   const send = () => {
     const t = msg.trim()
     if (!t) return
@@ -56,7 +56,7 @@ export function Chat() {
       </div>
       <div className="mini">
         <button onClick={() => A.openListing(x.id)} style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 0, textAlign: 'left' }}>
-          <div className="ph"><ImgPlaceholder /></div>
+          <div className="ph">{x.photos[0] ? <img src={x.photos[0]} alt="" /> : <ImgPlaceholder />}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.t}</div>
             <div style={{ fontSize: 13, color: 'var(--g5)' }}>{money(c.agreed ?? x.p, x.unit)}</div>
@@ -161,7 +161,7 @@ export function Confirm() {
   const x = s.listings.find((l) => l.id === s.cur)
   if (!x) return null
   const p = s.pickup
-  const seller = SELLERS[x.s]
+  const seller = sellerOf(s, x)
   const d = s.handover
   return (
     <div className="screen">
@@ -200,7 +200,7 @@ export function Rate() {
   const { s, A } = useApp()
   const x = s.listings.find((l) => l.id === s.cur)
   if (!x) return null
-  const seller = SELLERS[x.s]
+  const seller = sellerOf(s, x)
   const tags = ['On time', 'As described', 'Friendly', 'Easy handover', 'Fair price']
   return (
     <div className="screen">

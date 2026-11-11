@@ -1,12 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createListing, fetchAll, removeListing, setFavourite } from './api'
+import { ALLOWED_EMAIL, CATS, money, now } from './data'
 import { supabase } from './supabase'
-import { CITYU_EMAIL, money, now, SEED_LISTINGS, SELLERS } from './data'
-import type { Chat, Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Sheet } from './types'
+import type { Chat, Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Seller, Sheet } from './types'
 
 export interface State {
   screen: Screen
   hist: Screen[]
   email: string
+  userId: string | null
   otpStage: boolean
   emailErr: boolean
   type: ListingType
@@ -25,15 +27,20 @@ export interface State {
   typing: boolean
   post: PostDraft
   listings: Listing[]
+  sellers: Record<string, Seller>
+  loading: boolean
+  posting: boolean
 }
 
 const DEFAULT_FILTERS: Filters = { max: 5000, cond: [], sort: 'new' }
-const EMPTY_POST: PostDraft = { title: '', price: '', cat: 'Furniture', cond: 'Good', spot: 'Hall Lobby', desc: '' }
+const EMPTY_POST: PostDraft = { title: '', price: '', type: 'goods', unit: '', cat: 'Furniture', cond: 'Good', spot: 'Hall Lobby', desc: '' }
+const UNKNOWN_SELLER: Seller = { name: 'Unknown', r: 0, n: 0, hall: '' }
 
 const initial = (): State => ({
   screen: 'login',
   hist: [],
   email: '',
+  userId: null,
   otpStage: false,
   emailErr: false,
   type: 'goods',
@@ -41,33 +48,20 @@ const initial = (): State => ({
   q: '',
   F: DEFAULT_FILTERS,
   fav: [],
-  cur: 1,
+  cur: 0,
   sheet: null,
   toast: null,
-  chats: {
-    3: {
-      msgs: [
-        { w: 'me', t: 'Hi! Is the battery still at 87%?', ts: 'Yesterday' },
-        { w: 'them', t: 'Yes, I checked this morning.', ts: 'Yesterday' },
-        { w: 'them', t: 'Happy to let you test it in the lobby.', ts: 'Yesterday' },
-      ],
-      unread: 1,
-    },
-    4: {
-      msgs: [
-        { w: 'me', t: 'Can I pick it up tonight?', ts: '9:12 AM' },
-        { w: 'them', t: "Sure, I'm at the lobby after 7.", ts: '9:30 AM' },
-      ],
-      unread: 0,
-    },
-  },
+  chats: {},
   pickup: { spot: 'Hall Lobby', day: 'Fri', time: '15:00' },
   handover: false,
   rate: 0,
   rateTags: [],
   typing: false,
   post: EMPTY_POST,
-  listings: SEED_LISTINGS,
+  listings: [],
+  sellers: {},
+  loading: false,
+  posting: false,
 })
 
 export function useAppState() {
@@ -85,14 +79,6 @@ export function useAppState() {
       t.forEach(clearTimeout)
       clearTimeout(toastTimer.current)
     }
-  }, [])
-
-  useEffect(() => {
-    if (!supabase) return
-    void supabase.auth.getSession().then(({ data }) => {
-      const email = data.session?.user.email
-      if (email) setS((x) => (x.screen === 'login' ? { ...x, email, screen: 'home' } : x))
-    })
   }, [])
 
   const patch = useCallback((p: Partial<State>) => setS((x) => ({ ...x, ...p })), [])
@@ -128,38 +114,61 @@ export function useAppState() {
     }
     const listing = (id: number) => ref.current.listings.find((l) => l.id === id)
 
+    const loadData = async (uid: string) => {
+      setS((x) => ({ ...x, loading: true }))
+      try {
+        const d = await fetchAll(uid)
+        setS((x) => ({ ...x, listings: d.listings, sellers: d.sellers, fav: d.fav, loading: false }))
+      } catch (e) {
+        setS((x) => ({ ...x, loading: false }))
+        toast(e instanceof Error ? e.message : 'Could not load listings')
+      }
+    }
+
     return {
       toast,
       go,
       back,
       tab,
+      loadData,
       async sendCode(email: string) {
         const em = email.trim().toLowerCase()
-        if (!CITYU_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
+        if (!ALLOWED_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
         setS((x) => ({ ...x, email: em, emailErr: false }))
-        if (supabase) {
-          const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
-          if (error) return toast(error.message)
-        }
+        const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
+        if (error) return toast(error.message)
         setS((x) => ({ ...x, otpStage: true }))
       },
       async verifyCode(email: string, code: string) {
-        if (supabase) {
-          const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
-          if (error) {
-            toast('Invalid or expired code')
-            return false
-          }
+        const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
+        if (error) {
+          toast('Invalid or expired code')
+          return false
         }
         setS((x) => ({ ...x, otpStage: false, hist: [], screen: 'home' }))
         toast('Verified. Welcome to CampusSwap')
         return true
       },
-      logout() {
-        void supabase?.auth.signOut()
-        setS((x) => ({ ...x, screen: 'login', hist: [], otpStage: false, email: '' }))
+      async passwordLogin(email: string, password: string) {
+        const em = email.trim().toLowerCase()
+        const { error } = await supabase.auth.signInWithPassword({ email: em, password })
+        if (error) return toast('Wrong email or password')
+        setS((x) => ({ ...x, email: em, hist: [], screen: 'home' }))
       },
-      toggleFav: (id: number) => setS((x) => ({ ...x, fav: x.fav.includes(id) ? x.fav.filter((i) => i !== id) : [...x.fav, id] })),
+      logout() {
+        void supabase.auth.signOut()
+        setS(() => initial())
+      },
+      toggleFav(id: number) {
+        const { userId, fav } = ref.current
+        if (!userId) return
+        const on = !fav.includes(id)
+        setS((x) => ({ ...x, fav: on ? [...x.fav, id] : x.fav.filter((i) => i !== id) }))
+        setFavourite(userId, id, on).catch(() => {
+          setS((x) => ({ ...x, fav: on ? x.fav.filter((i) => i !== id) : [...x.fav, id] }))
+          toast('Could not update favourites')
+        })
+      },
       openListing(id: number) {
         patch({ cur: id })
         go('detail')
@@ -219,30 +228,66 @@ export function useAppState() {
         setS((x) => ({ ...x, rate: 0, rateTags: [], handover: false, hist: [], screen: 'home', sheet: null }))
         toast('Thanks! Rating submitted')
       },
-      setPost: (p: Partial<PostDraft>) => setS((x) => ({ ...x, post: { ...x.post, ...p } })),
-      publish() {
-        const p = ref.current.post
-        if (!p.title.trim() || !+p.price) return toast('Add a title and price')
-        const l: Listing = {
-          id: Date.now() % 100000,
-          t: p.title.trim(),
-          p: +p.price,
-          cond: p.cond,
-          cat: p.cat,
-          type: 'goods',
-          s: 'alex',
-          mine: true,
-          d: p.desc || 'No description.',
-          spots: [p.spot],
-          age: 'Just now',
+      setPost(p: Partial<PostDraft>) {
+        setS((x) => {
+          const post = { ...x.post, ...p }
+          if (p.type && p.type !== x.post.type) {
+            post.cat = CATS[p.type][1]
+            post.cond = p.type === 'services' ? 'Service' : 'Good'
+            post.unit = p.type === 'services' ? '/hr' : ''
+          }
+          return { ...x, post }
+        })
+      },
+      async publish(files: File[]): Promise<boolean> {
+        const { post: p, userId } = ref.current
+        if (!userId) return false
+        if (!p.title.trim() || !+p.price) {
+          toast('Add a title and price')
+          return false
         }
-        setS((x) => ({ ...x, listings: [l, ...x.listings], post: EMPTY_POST, hist: [], screen: 'home', type: 'goods', cat: 'All' }))
-        toast('Listing posted')
+        setS((x) => ({ ...x, posting: true }))
+        try {
+          await createListing(userId, p, files)
+          await loadData(userId)
+          setS((x) => ({ ...x, posting: false, post: EMPTY_POST, hist: [], screen: 'home', type: p.type, cat: 'All' }))
+          toast('Listing posted')
+          return true
+        } catch (e) {
+          setS((x) => ({ ...x, posting: false }))
+          toast(e instanceof Error ? e.message : 'Could not post listing')
+          return false
+        }
+      },
+      async removeListing(id: number) {
+        try {
+          await removeListing(id)
+          setS((x) => ({ ...x, listings: x.listings.filter((l) => l.id !== id), hist: [], screen: 'home' }))
+          toast('Listing removed')
+        } catch (e) {
+          toast(e instanceof Error ? e.message : 'Could not remove listing')
+        }
       },
       setType: (type: ListingType) => patch({ type, cat: 'All' }),
       resetFilters: () => patch({ F: DEFAULT_FILTERS }),
     }
   }, [patch])
+
+  // Session handling: restores a saved session on reload, follows sign in and out.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user
+      setS((x) => ({
+        ...x,
+        userId: u?.id ?? null,
+        email: u?.email ?? x.email,
+        screen: u && x.screen === 'login' ? 'home' : x.screen,
+      }))
+      // defer: supabase calls must not run inside the auth callback
+      if (u) window.setTimeout(() => void A.loadData(u.id), 0)
+    })
+    return () => data.subscription.unsubscribe()
+  }, [A])
 
   return { s, patch, A }
 }
@@ -260,19 +305,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return <AppCtx.Provider value={v}>{children}</AppCtx.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useApp() {
   const c = useContext(AppCtx)
   if (!c) throw new Error('useApp outside AppProvider')
   return c
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+export const sellerOf = (s: State, l: Listing): Seller => s.sellers[l.sellerId] ?? UNKNOWN_SELLER
+
 export function useFiltered() {
   const { s } = useApp()
   let r = s.listings.filter((x) => x.type === s.type)
   if (s.cat !== 'All') r = r.filter((x) => x.cat === s.cat)
-  if (s.q) r = r.filter((x) => (x.t + x.cat + SELLERS[x.s].name).toLowerCase().includes(s.q.toLowerCase()))
+  if (s.q) {
+    const q = s.q.toLowerCase()
+    r = r.filter((x) => (x.t + x.cat + (s.sellers[x.sellerId]?.name ?? '')).toLowerCase().includes(q))
+  }
   r = r.filter((x) => x.p <= s.F.max)
   if (s.F.cond.length) r = r.filter((x) => s.F.cond.includes(x.cond))
   if (s.F.sort === 'low') r = [...r].sort((a, b) => a.p - b.p)

@@ -17,11 +17,11 @@ export interface Listing {
   cond: string
   cat: string
   type: ListingType
-  s: string
+  sellerId: string
   d: string
   spots: string[]
-  age: string
-  mine?: boolean
+  createdAt: string
+  photos: string[]
 }
 
 export interface Pickup {
@@ -70,6 +70,8 @@ export interface Filters {
 export interface PostDraft {
   title: string
   price: string
+  type: ListingType
+  unit: string
   cat: string
   cond: string
   spot: string

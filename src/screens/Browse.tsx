@@ -1,7 +1,8 @@
 import { ListingGrid, Tabs } from '../components'
-import { CATS, initials, money, SELLERS } from '../data'
+import { useState } from 'react'
+import { ago, CATS, initials, money } from '../data'
 import { Icon, ImgPlaceholder } from '../icons'
-import { useApp } from '../store'
+import { sellerOf, useApp } from '../store'
 
 export function Home() {
   const { s, patch, A } = useApp()
@@ -45,7 +46,7 @@ export function Home() {
           ))}
         </div>
         <div className="grid">
-          <ListingGrid />
+          {s.loading && !s.listings.length ? <div className="empty">Loading listings...</div> : <ListingGrid />}
         </div>
       </div>
       <Tabs active="home" />
@@ -55,10 +56,12 @@ export function Home() {
 
 export function Detail() {
   const { s, A } = useApp()
+  const [pi, setPi] = useState(0)
   const x = s.listings.find((l) => l.id === s.cur)
   if (!x) return null
-  const seller = SELLERS[x.s]
+  const seller = sellerOf(s, x)
   const fav = s.fav.includes(x.id)
+  const mine = x.sellerId === s.userId
   return (
     <div className="screen">
       <div className="top">
@@ -70,12 +73,14 @@ export function Detail() {
         <button className="ib" aria-label="More" onClick={() => A.setSheet('report')}><Icon n="more" /></button>
       </div>
       <div className="scroll">
-        <div className="ph" style={{ height: 250, borderRadius: 'var(--r)' }}><ImgPlaceholder /></div>
-        <div className="dots"><i className="on" /><i /><i /><i /></div>
+        <div className="ph" style={{ height: 250, borderRadius: 'var(--r)' }} onClick={() => x.photos.length > 1 && setPi((pi + 1) % x.photos.length)}>
+          {x.photos.length ? <img src={x.photos[pi % x.photos.length]} alt={x.t} /> : <ImgPlaceholder />}
+        </div>
+        <div className="dots">{(x.photos.length ? x.photos : ['']).map((_, i) => <i key={i} className={i === pi % Math.max(1, x.photos.length) ? 'on' : ''} />)}</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <span className="tag k">{x.cond}</span>
           <span className="tag">{x.cat}</span>
-          <span className="tag">{x.age}</span>
+          <span className="tag">{ago(x.createdAt)}</span>
         </div>
         <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: '-.4px', lineHeight: 1.2 }}>{x.t}</div>
         <div style={{ fontSize: 26, fontWeight: 800, margin: '6px 0 16px' }}>{money(x.p, x.unit)}</div>
@@ -84,7 +89,7 @@ export function Detail() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 650, fontSize: 16 }}>{seller.name}</div>
             <div className="meta">
-              <Icon n="star" s={14} f="currentColor" w={1} /> {seller.r.toFixed(1)} <span>· {seller.n} trades</span>
+              <Icon n="star" s={14} f="currentColor" w={1} /> {seller.n > 0 ? seller.r.toFixed(1) : 'New'} <span>· {seller.n} trades</span>
             </div>
             <div style={{ marginTop: 6 }}><span className="tag"><Icon n="shield" s={13} /> CityU Verified</span></div>
           </div>
@@ -102,7 +107,11 @@ export function Detail() {
         </div>
       </div>
       <div className="footer">
-        <button className="btn" onClick={A.startChat}><Icon n="chat" s={20} /> Chat / Make Offer</button>
+        {mine ? (
+          <button className="btn sec" onClick={() => void A.removeListing(x.id)}>Remove my listing</button>
+        ) : (
+          <button className="btn" onClick={A.startChat}><Icon n="chat" s={20} /> Chat / Make Offer</button>
+        )}
       </div>
     </div>
   )
