@@ -45,6 +45,7 @@ export function Settings() {
         <div className="sec-t">Account</div>
         <div className="list">
           <Row icon="user" label="Edit profile" value={me.hall} onClick={() => A.go('editProfile')} />
+          <Row icon="shield" label="Password" value={s.hasPw ? 'Set' : 'Not set'} onClick={() => A.go('password')} />
           <Row icon="block" label="Blocked users" value={s.blocked.length ? String(s.blocked.length) : undefined} onClick={() => A.setSheet('blocked')} />
         </div>
 
@@ -106,6 +107,42 @@ export function EditProfile() {
         >
           Save
         </button>
+      </div>
+    </div>
+  )
+}
+
+export function SetPassword() {
+  const { A } = useApp()
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const ok = pw.length >= 8 && pw === pw2
+  return (
+    <div className="screen">
+      <Header title="Password" />
+      <div className="scroll" style={{ paddingTop: 0 }}>
+        <div className="hint" style={{ marginTop: 6 }}>Set a password and you can sign in with it next time, with no email code. You can still use an email code any time.</div>
+        <label className="l">New password</label>
+        <div className="field"><input type="password" autoComplete="new-password" placeholder="At least 8 characters" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+        <label className="l">Confirm password</label>
+        <div className="field"><input type="password" autoComplete="new-password" placeholder="Type it again" value={pw2} onChange={(e) => setPw2(e.target.value)} /></div>
+        {pw2 && pw !== pw2 && <div className="hint" style={{ color: 'var(--ink)', fontWeight: 600 }}>Passwords do not match.</div>}
+        <div className="hint">Use a password you do not use anywhere else.</div>
+      </div>
+      <div className="footer">
+        <button
+          className="btn"
+          disabled={!ok || busy}
+          onClick={async () => {
+            setBusy(true)
+            if (await A.savePassword(pw)) A.back()
+            setBusy(false)
+          }}
+        >
+          Save password
+        </button>
+        <button className="sub" style={{ display: 'block', margin: '12px auto 0', textDecoration: 'underline' }} onClick={A.back}>Skip for now</button>
       </div>
     </div>
   )

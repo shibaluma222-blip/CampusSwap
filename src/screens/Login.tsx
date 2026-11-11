@@ -11,7 +11,9 @@ export function Login() {
   const [email, setEmail] = useState(s.email)
   const [digits, setDigits] = useState<string[]>(() => Array(OTP_LEN).fill(''))
   const [pw, setPw] = useState('')
+  const [usePw, setUsePw] = useState(false)
   const demo = isDemoEmail(email)
+  const pwMode = demo || usePw
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
   const submit = (next: string[]) => {
@@ -68,14 +70,14 @@ export function Login() {
               Use your CityU email (@my.cityu.edu.hk or @cityu.edu.hk).
             </div>
           )}
-          {demo && !s.otpStage && (
+          {pwMode && !s.otpStage && (
             <div className="field" style={{ marginTop: 10 }}>
               <Icon n="shield" s={20} />
-              <input type="password" placeholder="Demo password" autoComplete="off" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void A.passwordLogin(email, pw)} />
+              <input type="password" placeholder="Password" autoComplete="off" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void A.passwordLogin(email, pw)} />
             </div>
           )}
           {!s.otpStage ? (
-            <button className="btn" style={{ marginTop: 14 }} onClick={() => (demo ? void A.passwordLogin(email, pw) : void A.sendCode(email))}>{demo ? 'Sign in' : 'Send Code'}</button>
+            <button className="btn" style={{ marginTop: 14 }} onClick={() => (pwMode ? void A.passwordLogin(email, pw) : void A.sendCode(email))}>{pwMode ? 'Sign in' : 'Send Code'}</button>
           ) : (
             <>
               <div className="sub center" style={{ margin: '22px 0 12px' }}>Enter the 8-digit code we sent to your inbox</div>
@@ -101,6 +103,12 @@ export function Login() {
               </div>
             </>
           )}
+          {!s.otpStage && !demo && (
+            <button className="sub" style={{ display: 'block', margin: '14px auto 0', textDecoration: 'underline' }} onClick={() => setUsePw(!usePw)}>
+              {usePw ? 'Email me a code instead' : 'Sign in with password'}
+            </button>
+          )}
+          {usePw && !s.otpStage && <div className="hint center">First time, or forgot it? Use an email code, then set a new password in Settings.</div>}
           <div className="hint center" style={{ marginTop: 22 }}>Verified CityU students only.</div>
           {s.otpStage && <div className="demo">No email? Check your junk folder.</div>}
         </div>

@@ -4,7 +4,7 @@ import {
   removeListing, resolveReportRpc, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser, updateProfile,
   type MsgRow, type ThreadRow,
 } from './api'
-import { ALLOWED_EMAIL, CATS } from './data'
+import { ALLOWED_EMAIL, CATS, isDemoEmail } from './data'
 import { supabase } from './supabase'
 import type { Filters, InfoKey, Listing, ListingType, Msg, Pickup, PostDraft, Report, ReportReason, Screen, Seller, Sheet, Thread } from './types'
 
@@ -13,6 +13,7 @@ export interface State {
   hist: Screen[]
   email: string
   userId: string | null
+  hasPw: boolean
   otpStage: boolean
   emailErr: boolean
   type: ListingType
@@ -51,6 +52,7 @@ const initial = (): State => ({
   hist: [],
   email: '',
   userId: null,
+  hasPw: false,
   otpStage: false,
   emailErr: false,
   type: 'goods',
@@ -180,20 +182,32 @@ export function useAppState() {
         setS((x) => ({ ...x, otpStage: true }))
       },
       async verifyCode(email: string, code: string) {
-        const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
+        const { data, error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
         if (error) {
           toast('Invalid or expired code')
           return false
         }
-        setS((x) => ({ ...x, otpStage: false, hist: [], screen: 'home' }))
+        // First time on this account: offer to set a password so the next login needs no email code.
+        const needPw = !data.user?.user_metadata?.has_pw && !isDemoEmail(email)
+        setS((x) => ({ ...x, otpStage: false, hist: needPw ? ['home'] : [], screen: needPw ? 'password' : 'home' }))
         toast('Verified. Welcome to CampusSwap')
         return true
       },
       async passwordLogin(email: string, password: string) {
         const em = email.trim().toLowerCase()
+        if (!ALLOWED_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
         const { error } = await supabase.auth.signInWithPassword({ email: em, password })
         if (error) return toast('Wrong email or password')
         setS((x) => ({ ...x, email: em, hist: [], screen: 'home' }))
+      },
+      async savePassword(password: string): Promise<boolean> {
+        const { error } = await supabase.auth.updateUser({ password, data: { has_pw: true } })
+        if (error) {
+          toast(error.message)
+          return false
+        }
+        toast('Password saved. You can sign in with it next time')
+        return true
       },
       logout() {
         void supabase.auth.signOut()
@@ -464,6 +478,7 @@ export function useAppState() {
       setS((x) => ({
         ...x,
         userId: u?.id ?? null,
+        hasPw: !!u?.user_metadata?.has_pw,
         email: u?.email ?? x.email,
         screen: u && x.screen === 'login' ? 'home' : x.screen,
       }))

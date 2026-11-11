@@ -3,7 +3,7 @@ import { Detail, Home } from './screens/Browse'
 import { Chat, Confirm, Rate, Schedule } from './screens/Deal'
 import { Admin } from './screens/Admin'
 import { Login } from './screens/Login'
-import { EditProfile, Info, Settings } from './screens/Settings'
+import { EditProfile, Info, SetPassword, Settings } from './screens/Settings'
 import { Messages, Post, Profile, Saved } from './screens/Tabs'
 import { AppProvider, useApp } from './store'
 import type { ReactNode } from 'react'
@@ -24,6 +24,7 @@ const SCREENS: Record<Screen, () => ReactNode> = {
   saved: Saved,
   settings: Settings,
   editProfile: EditProfile,
+  password: SetPassword,
   info: Info,
 }
 

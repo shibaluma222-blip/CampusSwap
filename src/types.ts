@@ -80,6 +80,7 @@ export type Screen =
   | 'saved'
   | 'settings'
   | 'editProfile'
+  | 'password'
   | 'info'
 
 export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | 'deleteAccount' | null
