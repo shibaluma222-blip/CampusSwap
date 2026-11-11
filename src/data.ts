@@ -1,8 +1,8 @@
 import type { ListingType } from './types'
 
 export const CATS: Record<ListingType, string[]> = {
-  goods: ['All', 'Furniture', 'Textbooks', 'Electronics', 'Appliances'],
-  services: ['All', 'Moving', 'Tutoring', 'Personal', 'Design'],
+  goods: ['All', 'Furniture', 'Textbooks', 'Electronics', 'Appliances', 'Other'],
+  services: ['All', 'Moving', 'Tutoring', 'Personal', 'Design', 'Other'],
 }
 
 export const SPOTS = ['Hall Lobby', 'Block A Lobby', 'Block B Lobby', 'Block C Lobby', 'Study Lounge G/F', 'Mailroom']
