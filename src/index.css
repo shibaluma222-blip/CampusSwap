@@ -188,3 +188,4 @@ textarea.ta:focus{border-color:var(--ink)}
 .scan .msg{position:relative;color:#fff;font-size:14px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .scan .btn{position:relative}
 .codebox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:2px;margin:2px 0 10px}
+.stat{font:inherit;color:inherit;background:none;cursor:pointer}

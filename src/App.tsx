@@ -3,7 +3,7 @@ import { Detail, Home } from './screens/Browse'
 import { Chat, Confirm, Rate, Schedule } from './screens/Deal'
 import { Admin } from './screens/Admin'
 import { Login } from './screens/Login'
-import { Messages, Post, Profile } from './screens/Tabs'
+import { Messages, Post, Profile, Saved } from './screens/Tabs'
 import { AppProvider, useApp } from './store'
 import type { ReactNode } from 'react'
 import type { Screen } from './types'
@@ -20,6 +20,7 @@ const SCREENS: Record<Screen, () => ReactNode> = {
   messages: Messages,
   profile: Profile,
   admin: Admin,
+  saved: Saved,
 }
 
 function Shell() {

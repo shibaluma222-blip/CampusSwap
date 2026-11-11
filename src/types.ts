@@ -77,6 +77,7 @@ export type Screen =
   | 'messages'
   | 'profile'
   | 'admin'
+  | 'saved'
 
 export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | null
 

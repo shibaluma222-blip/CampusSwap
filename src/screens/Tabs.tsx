@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Tabs } from '../components'
+import { CardGrid, Tabs } from '../components'
 import { CATS, clock, initials, money, SPOTS } from '../data'
 import { Icon, ImgPlaceholder } from '../icons'
-import { partnerId, profileOf, unreadOf, useApp } from '../store'
+import { partnerId, profileOf, unreadOf, useApp, useSaved } from '../store'
 
 const MAX_PHOTOS = 3
 
@@ -138,6 +138,7 @@ export function Messages() {
 export function Profile() {
   const { s, A } = useApp()
   const mine = s.listings.filter((x) => x.sellerId === s.userId && x.status === 'active')
+  const saved = useSaved()
   const me = s.userId ? s.sellers[s.userId] : undefined
   const name = me?.name ?? (s.email ? s.email.split('@')[0] : 'you')
   const init = (name.replace(/[^a-z]/gi, '').slice(0, 2) || 'Me').toUpperCase()
@@ -155,7 +156,7 @@ export function Profile() {
         </div>
         <div className="row">
           <div className="stat"><b>{mine.length}</b><span>Listings</span></div>
-          <div className="stat"><b>{s.fav.length}</b><span>Saved</span></div>
+          <button className="stat" onClick={() => A.go('saved')}><b>{saved.length}</b><span>Saved</span></button>
           <div className="stat"><b>{me && me.n > 0 ? me.r.toFixed(1) : '-'}</b><span>Rating</span></div>
         </div>
         <div className="sec-t">My listings</div>
@@ -173,7 +174,7 @@ export function Profile() {
         )}
         <div className="sec-t">Account</div>
         <div className="list">
-          <button className="li" onClick={() => A.toast('Saved items view is not part of this demo')}><Icon n="heart" s={20} /><span className="s">Saved items</span></button>
+          <button className="li" onClick={() => A.go('saved')}><Icon n="heart" s={20} /><span className="s">Saved items{saved.length ? ` (${saved.length})` : ''}</span></button>
           <button className="li" onClick={() => A.setSheet('blocked')}><Icon n="block" s={20} /><span className="s">Blocked users{s.blocked.length ? ` (${s.blocked.length})` : ''}</span></button>
           {me?.admin && (
             <button className="li" onClick={() => A.go('admin')}><Icon n="shield" s={20} /><span className="s">Moderation</span></button>
@@ -183,6 +184,25 @@ export function Profile() {
         </div>
       </div>
       <Tabs active="profile" />
+    </div>
+  )
+}
+
+export function Saved() {
+  const { A } = useApp()
+  const saved = useSaved()
+  return (
+    <div className="screen">
+      <div className="top">
+        <button className="ib" aria-label="Back" onClick={A.back}><Icon n="back" /></button>
+        <h2>Saved items</h2>
+        <div style={{ width: 40 }} />
+      </div>
+      <div className="scroll" style={{ paddingTop: 0 }}>
+        <div className="grid" style={{ marginTop: 4 }}>
+          <CardGrid items={saved} empty="Nothing saved yet. Tap the heart on a listing to keep it here." />
+        </div>
+      </div>
     </div>
   )
 }

@@ -513,3 +513,8 @@ export function reportTarget(s: State): { userId: string; listingId: number | nu
   if (!x || x.sellerId === s.userId) return null
   return { userId: x.sellerId, listingId: x.id, name: profileOf(s, x.sellerId).name }
 }
+
+export function useSaved() {
+  const { s } = useApp()
+  return s.listings.filter((x) => s.fav.includes(x.id) && x.status === 'active' && !s.blocked.includes(x.sellerId))
+}

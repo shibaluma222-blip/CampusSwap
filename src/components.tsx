@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { money } from './data'
 import { Icon, ImgPlaceholder, type IconName } from './icons'
 import { profileOf, reportTarget, totalUnread, useApp, useFiltered } from './store'
-import type { ReportReason, Screen } from './types'
+import type { Listing, ReportReason, Screen } from './types'
 
 export function Tabs({ active }: { active: Screen }) {
   const { s, A } = useApp()
@@ -37,9 +37,12 @@ export function Toast() {
 }
 
 export function ListingGrid() {
+  return <CardGrid items={useFiltered()} empty="No results. Try removing a filter." />
+}
+
+export function CardGrid({ items: r, empty }: { items: Listing[]; empty: string }) {
   const { s, A } = useApp()
-  const r = useFiltered()
-  if (!r.length) return <div className="empty">No results. Try removing a filter.</div>
+  if (!r.length) return <div className="empty">{empty}</div>
   return (
     <>
       {r.map((x) => {
