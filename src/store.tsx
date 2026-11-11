@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { supabase } from './supabase'
 import { CITYU_EMAIL, money, now, SEED_LISTINGS, SELLERS } from './data'
 import type { Chat, Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Sheet } from './types'
 
@@ -86,6 +87,14 @@ export function useAppState() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!supabase) return
+    void supabase.auth.getSession().then(({ data }) => {
+      const email = data.session?.user.email
+      if (email) setS((x) => (x.screen === 'login' ? { ...x, email, screen: 'home' } : x))
+    })
+  }, [])
+
   const patch = useCallback((p: Partial<State>) => setS((x) => ({ ...x, ...p })), [])
 
   const A = useMemo(() => {
@@ -124,16 +133,32 @@ export function useAppState() {
       go,
       back,
       tab,
-      sendCode(email: string) {
+      async sendCode(email: string) {
         const em = email.trim().toLowerCase()
         if (!CITYU_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
-        setS((x) => ({ ...x, email: em, emailErr: false, otpStage: true }))
+        setS((x) => ({ ...x, email: em, emailErr: false }))
+        if (supabase) {
+          const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true } })
+          if (error) return toast(error.message)
+        }
+        setS((x) => ({ ...x, otpStage: true }))
       },
-      verified() {
+      async verifyCode(email: string, code: string) {
+        if (supabase) {
+          const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
+          if (error) {
+            toast('Invalid or expired code')
+            return false
+          }
+        }
         setS((x) => ({ ...x, otpStage: false, hist: [], screen: 'home' }))
         toast('Verified. Welcome to CampusSwap')
+        return true
       },
-      logout: () => setS((x) => ({ ...x, screen: 'login', hist: [], otpStage: false, email: '' })),
+      logout() {
+        void supabase?.auth.signOut()
+        setS((x) => ({ ...x, screen: 'login', hist: [], otpStage: false, email: '' }))
+      },
       toggleFav: (id: number) => setS((x) => ({ ...x, fav: x.fav.includes(id) ? x.fav.filter((i) => i !== id) : [...x.fav, id] })),
       openListing(id: number) {
         patch({ cur: id })

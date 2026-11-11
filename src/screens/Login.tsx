@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { Icon } from '../icons'
 import { useApp } from '../store'
+import { supabase } from '../supabase'
 
-const DEMO = true
+const DEMO = !supabase
 
 export function Login() {
   const { s, A, patch } = useApp()
@@ -15,7 +16,13 @@ export function Login() {
     const next = digits.map((d, j) => (j === i ? v : d))
     setDigits(next)
     if (v && i < 5) refs.current[i + 1]?.focus()
-    if (next.every(Boolean)) window.setTimeout(A.verified, 250)
+    if (next.every(Boolean)) {
+      void A.verifyCode(email, next.join('')).then((ok) => {
+        if (ok) return
+        setDigits(['', '', '', '', '', ''])
+        refs.current[0]?.focus()
+      })
+    }
   }
 
   return (
