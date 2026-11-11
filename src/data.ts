@@ -7,11 +7,10 @@ export const CATS: Record<ListingType, string[]> = {
 
 export const SPOTS = ['Hall Lobby', 'Block A Lobby', 'Block B Lobby', 'Block C Lobby', 'Study Lounge G/F', 'Mailroom']
 
-export const initials = (n: string) =>
-  n
-    .split(' ')
-    .map((x) => x[0])
-    .join('')
+export const initials = (n: string) => {
+  const w = n.trim().split(/\s+/).filter(Boolean)
+  return (w.length > 1 ? w.map((x) => x[0]).join('') : (w[0] ?? '').slice(0, 2)).toUpperCase()
+}
 
 export const money = (p: number, u?: string) => 'HK$' + p.toLocaleString('en-US') + (u ?? '')
 
