@@ -16,7 +16,7 @@ svg{display:block}
 #view{position:absolute;inset:44px 0 0 0;display:flex;flex-direction:column}
 @media (max-width:480px){
   body{background:var(--bg);display:block}
-  #phone{width:100vw;height:100dvh;border:0;border-radius:0;box-shadow:none}
+  #phone{width:100vw;height:var(--app-h,100dvh);border:0;border-radius:0;box-shadow:none}
   #status{display:none}
   #view{inset:0;padding-top:env(safe-area-inset-top)}
 }
@@ -25,7 +25,7 @@ svg{display:block}
 @keyframes in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
 .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 18px 18px;scrollbar-width:none}
 .scroll::-webkit-scrollbar{display:none}
-.footer{padding:12px 18px 20px;background:var(--bg);border-top:1px solid var(--g2);flex:none}
+.footer{padding:12px 18px max(20px,env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--g2);flex:none}
 
 /* top bars */
 .top{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;flex:none;min-height:50px}
@@ -54,7 +54,7 @@ svg{display:block}
 .otp input:focus{border-color:var(--ink)}
 .otp input.f{border-color:var(--ink);background:var(--g1)}
 label.l{display:block;font-size:13px;font-weight:600;margin:16px 0 8px;color:var(--g5)}
-textarea.ta{width:100%;border:1.5px solid var(--g3);border-radius:var(--r);padding:12px 14px;font-size:15px;outline:0;resize:none;height:96px}
+textarea.ta{width:100%;border:1.5px solid var(--g3);border-radius:var(--r);padding:12px 14px;font-size:16px;outline:0;resize:none;height:96px}
 textarea.ta:focus{border-color:var(--ink)}
 
 /* chips */
@@ -68,7 +68,7 @@ textarea.ta:focus{border-color:var(--ink)}
 
 /* search + segmented */
 .search{display:flex;align-items:center;gap:10px;height:46px;background:var(--g1);border:1px solid var(--g2);border-radius:var(--r);padding:0 14px}
-.search input{flex:1;border:0;outline:0;background:none;font-size:15px;min-width:0}
+.search input{flex:1;border:0;outline:0;background:none;font-size:16px;min-width:0}
 .seg{display:flex;background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:3px}
 .seg button{flex:1;height:34px;border-radius:9px;font-size:14px;font-weight:600;color:var(--g5)}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
@@ -90,7 +90,7 @@ textarea.ta:focus{border-color:var(--ink)}
 .empty{grid-column:1/-1;text-align:center;color:var(--g4);padding:50px 10px;font-size:14px}
 
 /* tab bar */
-.tabs{display:flex;border-top:1px solid var(--g2);padding:8px 6px 18px;flex:none;background:#fff}
+.tabs{display:flex;border-top:1px solid var(--g2);padding:8px 6px max(18px,env(safe-area-inset-bottom));flex:none;background:#fff}
 .tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--g4);font-weight:500;position:relative}
 .tabs button.on{color:var(--ink);font-weight:700}
 .dot{position:absolute;top:-2px;right:calc(50% - 18px);min-width:16px;height:16px;border-radius:8px;background:var(--ink);color:#fff;font-size:10px;display:grid;place-items:center;padding:0 4px}
@@ -115,7 +115,7 @@ textarea.ta:focus{border-color:var(--ink)}
 .offer{align-self:flex-end;border:1.5px solid var(--ink);border-radius:16px;padding:10px 14px;min-width:150px}
 .offer small{display:block;font-size:11px;color:var(--g5);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
 .offer b{font-size:20px}
-.composer{border-top:1px solid var(--g2);padding:10px 14px 18px;flex:none}
+.composer{border-top:1px solid var(--g2);padding:10px 14px max(18px,env(safe-area-inset-bottom));flex:none}
 .composer .qa{display:flex;gap:8px;margin-bottom:10px}
 .composer .qa .chip{height:34px;font-size:13px;display:flex;align-items:center;gap:6px}
 .mini{display:flex;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--g2);background:#fff;flex:none}
@@ -128,7 +128,7 @@ textarea.ta:focus{border-color:var(--ink)}
 
 /* sheet */
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:20;animation:fade .2s}
-.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;z-index:21;padding:10px 18px 24px;animation:up .25s ease;max-height:88%;overflow:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;z-index:21;padding:10px 18px max(24px,env(safe-area-inset-bottom));animation:up .25s ease;max-height:88%;overflow:auto}
 .sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--g3);margin:0 auto 14px}
 .sheet h3{font-size:18px;margin-bottom:4px}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
@@ -162,7 +162,7 @@ textarea.ta:focus{border-color:var(--ink)}
 .infocard{display:flex;gap:12px;align-items:center;border:1px solid var(--g2);border-radius:var(--r);padding:14px;text-align:left}
 .infocard small{display:block;font-size:12px;color:var(--g4)}
 .infocard b{font-size:15px}
-.toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;z-index:40;animation:fade .2s;white-space:nowrap;display:flex;gap:8px;align-items:center}
+.toast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;z-index:40;animation:fade .2s;white-space:nowrap;display:flex;gap:8px;align-items:center}
 .dots{display:flex;justify-content:center;gap:6px;margin:12px 0}
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--g3)}
 .dots i.on{background:var(--ink)}
@@ -182,7 +182,7 @@ textarea.ta:focus{border-color:var(--ink)}
 .offer .acts{display:flex;gap:8px;margin-top:10px}
 .offer .acts .btn{height:38px;font-size:14px;border-radius:10px}
 .deal .row{margin-top:2px}
-.scan{position:absolute;inset:0;z-index:30;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:20px 18px 28px;gap:14px}
+.scan{position:absolute;inset:0;z-index:30;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:20px 18px max(28px,env(safe-area-inset-bottom));gap:14px}
 .scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .scan .frame{position:absolute;top:22%;left:50%;width:62%;aspect-ratio:1;transform:translateX(-50%);border:3px solid #fff;border-radius:22px;box-shadow:0 0 0 999px rgba(0,0,0,.45)}
 .scan .msg{position:relative;color:#fff;font-size:14px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.6)}
