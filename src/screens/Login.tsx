@@ -3,26 +3,41 @@ import { Icon } from '../icons'
 import { useApp } from '../store'
 import { supabase } from '../supabase'
 
+// Must match Supabase Auth > Providers > Email > OTP length
+const OTP_LEN = 8
 const DEMO = !supabase
 
 export function Login() {
   const { s, A, patch } = useApp()
   const [email, setEmail] = useState(s.email)
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [digits, setDigits] = useState<string[]>(() => Array(OTP_LEN).fill(''))
   const refs = useRef<(HTMLInputElement | null)[]>([])
+
+  const submit = (next: string[]) => {
+    if (next.every(Boolean)) {
+      void A.verifyCode(email, next.join('')).then((ok) => {
+        if (ok) return
+        setDigits(Array(OTP_LEN).fill(''))
+        refs.current[0]?.focus()
+      })
+    }
+  }
 
   const setDigit = (i: number, raw: string) => {
     const v = raw.replace(/\D/g, '').slice(-1)
     const next = digits.map((d, j) => (j === i ? v : d))
     setDigits(next)
-    if (v && i < 5) refs.current[i + 1]?.focus()
-    if (next.every(Boolean)) {
-      void A.verifyCode(email, next.join('')).then((ok) => {
-        if (ok) return
-        setDigits(['', '', '', '', '', ''])
-        refs.current[0]?.focus()
-      })
-    }
+    if (v && i < OTP_LEN - 1) refs.current[i + 1]?.focus()
+    submit(next)
+  }
+
+  const paste = (text: string) => {
+    const ds = text.replace(/\D/g, '').slice(0, OTP_LEN).split('')
+    if (!ds.length) return
+    const next = Array.from({ length: OTP_LEN }, (_, j) => ds[j] ?? '')
+    setDigits(next)
+    refs.current[Math.min(ds.length, OTP_LEN - 1)]?.focus()
+    submit(next)
   }
 
   return (
@@ -56,7 +71,7 @@ export function Login() {
             <button className="btn" style={{ marginTop: 14 }} onClick={() => A.sendCode(email)}>Send Code</button>
           ) : (
             <>
-              <div className="sub center" style={{ margin: '22px 0 12px' }}>Enter the 6-digit code we sent to your inbox</div>
+              <div className="sub center" style={{ margin: '22px 0 12px' }}>Enter the 8-digit code we sent to your inbox</div>
               <div className="otp">
                 {digits.map((d, i) => (
                   <input
@@ -68,18 +83,19 @@ export function Login() {
                     autoFocus={i === 0}
                     value={d}
                     onChange={(e) => setDigit(i, e.target.value)}
+                    onPaste={(e) => { e.preventDefault(); paste(e.clipboardData.getData('text')) }}
                     onKeyDown={(e) => e.key === 'Backspace' && !d && i > 0 && refs.current[i - 1]?.focus()}
                   />
                 ))}
               </div>
               <div className="row" style={{ marginTop: 16, justifyContent: 'center' }}>
                 <button className="sub" style={{ textDecoration: 'underline' }} onClick={() => A.toast('Code resent')}>Resend code</button>
-                <button className="sub" style={{ textDecoration: 'underline' }} onClick={() => { setDigits(['', '', '', '', '', '']); patch({ otpStage: false }) }}>Change email</button>
+                <button className="sub" style={{ textDecoration: 'underline' }} onClick={() => { setDigits(Array(OTP_LEN).fill('')); patch({ otpStage: false }) }}>Change email</button>
               </div>
             </>
           )}
           <div className="hint center" style={{ marginTop: 22 }}>Verified CityU students only.</div>
-          {DEMO && <div className="demo">{s.otpStage ? 'Demo: any 6 digits will work' : 'Demo: type any @my.cityu.edu.hk address'}</div>}
+          {DEMO && <div className="demo">{s.otpStage ? 'Demo: any 8 digits will work' : 'Demo: type any @my.cityu.edu.hk address'}</div>}
         </div>
       </div>
     </div>

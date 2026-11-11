@@ -138,7 +138,7 @@ export function useAppState() {
         if (!CITYU_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
         setS((x) => ({ ...x, email: em, emailErr: false }))
         if (supabase) {
-          const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true } })
+          const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
           if (error) return toast(error.message)
         }
         setS((x) => ({ ...x, otpStage: true }))
