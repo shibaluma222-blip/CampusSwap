@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Listing, ListingType, Msg, PostDraft, Seller, Thread } from './types'
+import type { Listing, ListingType, Msg, PostDraft, Report, ReportReason, Seller, Thread } from './types'
 
 interface ListingRow {
   id: number
@@ -22,6 +22,7 @@ interface ProfileRow {
   hall: string | null
   rating_avg: number | string
   trades_count: number
+  is_admin?: boolean
 }
 
 const BUCKET = 'listing-photos'
@@ -35,15 +36,17 @@ export async function fetchAll(uid: string) {
   if (error) throw error
   const rows = (data ?? []) as unknown as ListingRow[]
   const ids = [...new Set([...rows.map((r) => r.seller_id), uid])]
-  const [pf, fv] = await Promise.all([
-    supabase.from('profiles').select('id,display_name,hall,rating_avg,trades_count').in('id', ids),
+  const [pf, fv, bl] = await Promise.all([
+    supabase.from('profiles').select('id,display_name,hall,rating_avg,trades_count,is_admin').in('id', ids),
     supabase.from('favourites').select('listing_id').eq('user_id', uid),
+    supabase.from('blocks').select('blocked_id').eq('blocker_id', uid),
   ])
   if (pf.error) throw pf.error
   if (fv.error) throw fv.error
+  if (bl.error) throw bl.error
   const sellers: Record<string, Seller> = {}
   for (const p of (pf.data ?? []) as ProfileRow[]) {
-    sellers[p.id] = { name: p.display_name, r: Number(p.rating_avg), n: p.trades_count, hall: p.hall ?? '' }
+    sellers[p.id] = { name: p.display_name, r: Number(p.rating_avg), n: p.trades_count, hall: p.hall ?? '', admin: !!p.is_admin }
   }
   const listings: Listing[] = rows.map((r) => ({
     id: r.id,
@@ -61,7 +64,8 @@ export async function fetchAll(uid: string) {
     photos: [...r.listing_photos].sort((a, b) => a.position - b.position).map((p) => photoUrl(p.path)),
   }))
   const fav = ((fv.data ?? []) as { listing_id: number }[]).map((f) => f.listing_id)
-  return { listings, sellers, fav }
+  const blocked = ((bl.data ?? []) as { blocked_id: string }[]).map((b) => b.blocked_id)
+  return { listings, sellers, fav, blocked }
 }
 
 export async function setFavourite(uid: string, listingId: number, on: boolean) {
@@ -226,3 +230,48 @@ export const getHandoverToken = (threadId: number) => rpc<string>('get_handover_
 export const confirmHandoverRpc = (threadId: number, token: string) => rpc<null>('confirm_handover', { p_thread: threadId, p_token: token })
 export const submitRatingRpc = (threadId: number, stars: number, tags: string[], comment: string) =>
   rpc<null>('submit_rating', { p_thread: threadId, p_stars: stars, p_tags: tags, p_comment: comment })
+
+// ---------- report / block / moderation ----------
+export async function blockUser(me: string, target: string) {
+  const { error } = await supabase.from('blocks').insert({ blocker_id: me, blocked_id: target })
+  if (error && error.code !== '23505') throw error
+}
+export async function unblockUser(me: string, target: string) {
+  const { error } = await supabase.from('blocks').delete().eq('blocker_id', me).eq('blocked_id', target)
+  if (error) throw error
+}
+export const submitReportRpc = (listingId: number | null, userId: string, reason: ReportReason, details: string) =>
+  rpc<null>('submit_report', { p_listing: listingId, p_user: userId, p_reason: reason, p_details: details })
+export const resolveReportRpc = (id: number, action: 'dismiss' | 'resolve' | 'remove_listing', note: string) =>
+  rpc<null>('resolve_report', { p_report: id, p_action: action, p_note: note })
+
+interface ReportRow {
+  id: number
+  reporter_id: string
+  reported_user_id: string
+  listing_id: number | null
+  reason: ReportReason
+  details: string
+  status: Report['status']
+  admin_note: string
+  created_at: string
+}
+export async function fetchReports(): Promise<{ reports: Report[]; profiles: Record<string, Seller> }> {
+  const { data, error } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(200)
+  if (error) throw error
+  const rows = (data ?? []) as unknown as ReportRow[]
+  const ids = [...new Set(rows.flatMap((r) => [r.reporter_id, r.reported_user_id]))]
+  const profiles: Record<string, Seller> = {}
+  if (ids.length) {
+    const pf = await supabase.from('profiles').select('id,display_name,hall,rating_avg,trades_count,is_admin').in('id', ids)
+    if (pf.error) throw pf.error
+    for (const p of (pf.data ?? []) as ProfileRow[]) {
+      profiles[p.id] = { name: p.display_name, r: Number(p.rating_avg), n: p.trades_count, hall: p.hall ?? '', admin: !!p.is_admin }
+    }
+  }
+  const reports: Report[] = rows.map((r) => ({
+    id: r.id, reporterId: r.reporter_id, reportedUserId: r.reported_user_id, listingId: r.listing_id ?? undefined,
+    reason: r.reason, details: r.details, status: r.status, adminNote: r.admin_note, createdAt: r.created_at,
+  }))
+  return { reports, profiles }
+}

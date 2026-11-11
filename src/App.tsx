@@ -1,6 +1,7 @@
 import { SheetHost, Toast } from './components'
 import { Detail, Home } from './screens/Browse'
 import { Chat, Confirm, Rate, Schedule } from './screens/Deal'
+import { Admin } from './screens/Admin'
 import { Login } from './screens/Login'
 import { Messages, Post, Profile } from './screens/Tabs'
 import { AppProvider, useApp } from './store'
@@ -18,6 +19,7 @@ const SCREENS: Record<Screen, () => ReactNode> = {
   post: Post,
   messages: Messages,
   profile: Profile,
+  admin: Admin,
 }
 
 function Shell() {

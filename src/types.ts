@@ -5,6 +5,7 @@ export interface Seller {
   r: number
   n: number
   hall: string
+  admin?: boolean
 }
 
 export interface Listing {
@@ -75,8 +76,9 @@ export type Screen =
   | 'post'
   | 'messages'
   | 'profile'
+  | 'admin'
 
-export type Sheet = 'filter' | 'offer' | 'report' | 'remove' | null
+export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | null
 
 export interface Filters {
   max: number
@@ -93,4 +95,18 @@ export interface PostDraft {
   cond: string
   spot: string
   desc: string
+}
+
+export type ReportReason = 'spam' | 'scam' | 'prohibited' | 'harassment' | 'other'
+
+export interface Report {
+  id: number
+  reporterId: string
+  reportedUserId: string
+  listingId?: number
+  reason: ReportReason
+  details: string
+  status: 'open' | 'resolved' | 'dismissed'
+  adminNote: string
+  createdAt: string
 }

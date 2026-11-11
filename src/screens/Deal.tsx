@@ -155,6 +155,12 @@ export function Chat() {
         <StatusCard />
         <div ref={end} />
       </div>
+      {s.blocked.includes(partnerId(s, t)) ? (
+        <div className="composer center">
+          <div className="sub" style={{ marginBottom: 10 }}>You blocked {partner.name}. Unblock to send messages.</div>
+          <button className="btn sec sm" onClick={() => void A.unblockUser(partnerId(s, t))}>Unblock</button>
+        </div>
+      ) : (
       <div className="composer">
         <div className="qa">
           {iAmBuyer && t.status === 'open' && (
@@ -174,6 +180,7 @@ export function Chat() {
           </button>
         </div>
       </div>
+      )}
     </div>
   )
 }

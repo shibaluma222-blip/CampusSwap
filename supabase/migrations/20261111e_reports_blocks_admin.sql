@@ -1,0 +1,6 @@
+-- Applied to Supabase project pfpkklpjdpbayiqcqqvl via MCP on 2026-11-11.
+-- blocks (own rows only), reports (reporter + admins read; created via submit_report, handled via resolve_report).
+-- private.is_admin() / private.blocked_between() live in a schema PostgREST does not expose, so they are usable in RLS but not callable as RPC.
+-- Trigger reject_blocked_messages stops messages and offers between blocked users; start_thread refuses blocked pairs.
+-- listings select policy hides blocked users' active listings (both directions); admins see all.
+-- Admin = profiles.is_admin = true, set only by SQL (users cannot update that column).

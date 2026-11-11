@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  acceptPickupRpc, confirmHandoverRpc, createListing, fetchAll, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
-  removeListing, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc,
+  acceptPickupRpc, blockUser, confirmHandoverRpc, createListing, fetchAll, fetchReports, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
+  removeListing, resolveReportRpc, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser,
   type MsgRow, type ThreadRow,
 } from './api'
 import { ALLOWED_EMAIL, CATS } from './data'
 import { supabase } from './supabase'
-import type { Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Seller, Sheet, Thread } from './types'
+import type { Filters, Listing, ListingType, Msg, Pickup, PostDraft, Report, ReportReason, Screen, Seller, Sheet, Thread } from './types'
 
 export interface State {
   screen: Screen
@@ -35,6 +35,10 @@ export interface State {
   sellers: Record<string, Seller> // every profile we have seen (sellers and chat partners)
   loading: boolean
   posting: boolean
+  blocked: string[] // users I blocked
+  reports: Report[] // admin only
+  reportReason: ReportReason | null
+  reportDetails: string
 }
 
 const DEFAULT_FILTERS: Filters = { max: 5000, cond: [], sort: 'new' }
@@ -68,6 +72,10 @@ const initial = (): State => ({
   sellers: {},
   loading: true, // true until the first data load finishes, so lists show Loading instead of empty
   posting: false,
+  blocked: [],
+  reports: [],
+  reportReason: null,
+  reportDetails: '',
 })
 
 const errText = (e: unknown, fallback: string) =>
@@ -106,7 +114,7 @@ export function useAppState() {
 
     const loadListings = async (uid: string) => {
       const d = await fetchAll(uid)
-      setS((x) => ({ ...x, listings: d.listings, sellers: { ...x.sellers, ...d.sellers }, fav: d.fav }))
+      setS((x) => ({ ...x, listings: d.listings, sellers: { ...x.sellers, ...d.sellers }, fav: d.fav, blocked: d.blocked }))
     }
     const refreshThreads = async () => {
       const uid = ref.current.userId
@@ -136,6 +144,15 @@ export function useAppState() {
         fail(e, 'Could not load listings')
       }
       setS((x) => ({ ...x, loading: false }))
+    }
+
+    const A_loadReports = async () => {
+      try {
+        const d = await fetchReports()
+        setS((x) => ({ ...x, reports: d.reports, sellers: { ...x.sellers, ...d.profiles } }))
+      } catch (e) {
+        fail(e, 'Could not load reports')
+      }
     }
 
     const upsertMsg = (m: Msg) =>
@@ -347,6 +364,59 @@ export function useAppState() {
           fail(e, 'Could not remove listing')
         }
       },
+      async blockUser(target: string) {
+        const uid = ref.current.userId
+        if (!uid) return
+        try {
+          await blockUser(uid, target)
+          setS((x) => ({
+            ...x,
+            blocked: x.blocked.includes(target) ? x.blocked : [...x.blocked, target],
+            sheet: null,
+            ...(x.screen === 'chat' || x.screen === 'detail' ? { screen: 'home' as Screen, hist: [] } : {}),
+          }))
+          toast('User blocked')
+        } catch (e) {
+          fail(e, 'Could not block user')
+        }
+      },
+      async unblockUser(target: string) {
+        const uid = ref.current.userId
+        if (!uid) return
+        try {
+          await unblockUser(uid, target)
+          setS((x) => ({ ...x, blocked: x.blocked.filter((i) => i !== target) }))
+          await loadListings(uid)
+          toast('User unblocked')
+        } catch (e) {
+          fail(e, 'Could not unblock user')
+        }
+      },
+      setReportDraft: (p: { reason?: ReportReason; details?: string }) =>
+        setS((x) => ({ ...x, reportReason: p.reason ?? x.reportReason, reportDetails: p.details ?? x.reportDetails })),
+      async submitReport() {
+        const { reportReason, reportDetails } = ref.current
+        const target = reportTarget(ref.current)
+        if (!target || !reportReason) return
+        try {
+          await submitReportRpc(target.listingId, target.userId, reportReason, reportDetails.trim())
+          setS((x) => ({ ...x, sheet: null, reportReason: null, reportDetails: '' }))
+          toast('Reported. Our moderators will review it')
+        } catch (e) {
+          fail(e, 'Could not send report')
+        }
+      },
+      loadReports: A_loadReports,
+      async resolveReport(id: number, action: 'dismiss' | 'resolve' | 'remove_listing', note: string) {
+        try {
+          await resolveReportRpc(id, action, note)
+          const uid = ref.current.userId
+          await Promise.all([A_loadReports(), uid ? loadListings(uid) : Promise.resolve()])
+          toast(action === 'remove_listing' ? 'Listing removed' : action === 'dismiss' ? 'Report dismissed' : 'Report resolved')
+        } catch (e) {
+          fail(e, 'Could not update report')
+        }
+      },
       setType: (type: ListingType) => patch({ type, cat: 'All' }),
       resetFilters: () => patch({ F: DEFAULT_FILTERS }),
     }
@@ -424,9 +494,22 @@ export function useFiltered() {
     const q = s.q.toLowerCase()
     r = r.filter((x) => (x.t + x.cat + (s.sellers[x.sellerId]?.name ?? '')).toLowerCase().includes(q))
   }
+  r = r.filter((x) => !s.blocked.includes(x.sellerId))
   r = r.filter((x) => x.p <= s.F.max)
   if (s.F.cond.length) r = r.filter((x) => s.F.cond.includes(x.cond))
   if (s.F.sort === 'low') r = [...r].sort((a, b) => a.p - b.p)
   if (s.F.sort === 'high') r = [...r].sort((a, b) => b.p - a.p)
   return r
+}
+
+export function reportTarget(s: State): { userId: string; listingId: number | null; name: string } | null {
+  if (s.screen === 'chat') {
+    const t = s.threads.find((i) => i.id === s.curThread)
+    if (!t) return null
+    const uid = partnerId(s, t)
+    return { userId: uid, listingId: t.listingId, name: profileOf(s, uid).name }
+  }
+  const x = s.listings.find((l) => l.id === s.cur)
+  if (!x || x.sellerId === s.userId) return null
+  return { userId: x.sellerId, listingId: x.id, name: profileOf(s, x.sellerId).name }
 }

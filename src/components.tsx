@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { money } from './data'
 import { Icon, ImgPlaceholder, type IconName } from './icons'
-import { totalUnread, useApp, useFiltered } from './store'
-import type { Screen } from './types'
+import { profileOf, reportTarget, totalUnread, useApp, useFiltered } from './store'
+import type { ReportReason, Screen } from './types'
 
 export function Tabs({ active }: { active: Screen }) {
   const { s, A } = useApp()
@@ -144,28 +144,92 @@ function OfferSheet() {
 }
 
 function ReportSheet() {
-  const { A } = useApp()
-  const done = (msg: string) => {
-    A.setSheet(null)
-    A.toast(msg)
-  }
+  const { s, A } = useApp()
+  const target = reportTarget(s)
+  if (!target) return null
   return (
     <>
       <div className="opt" style={{ pointerEvents: 'none', fontWeight: 700, border: 0, paddingBottom: 0 }}>
         <span>Safety</span>
       </div>
-      <button className="opt" onClick={() => done('Reported. Our moderators will review it')}>
+      <button className="opt" onClick={() => A.setSheet('reportReason')}>
         <Icon n="flag" s={22} />
-        <span>Report this listing</span>
+        <span>{target.listingId ? 'Report this listing or user' : 'Report this user'}</span>
       </button>
-      <button className="opt" onClick={() => done('User blocked')}>
+      <button className="opt" onClick={() => A.setSheet('block')}>
         <Icon n="block" s={22} />
-        <span>Block this user</span>
+        <span>Block {target.name}</span>
       </button>
       <button className="opt" onClick={() => A.setSheet(null)}>
         <Icon n="x" s={22} />
         <span>Cancel</span>
       </button>
+    </>
+  )
+}
+
+const REASONS: [ReportReason, string][] = [
+  ['spam', 'Spam or fake listing'],
+  ['scam', 'Scam or suspicious'],
+  ['prohibited', 'Prohibited item or service'],
+  ['harassment', 'Harassment or abuse'],
+  ['other', 'Something else'],
+]
+
+function ReasonSheet() {
+  const { s, A } = useApp()
+  const target = reportTarget(s)
+  if (!target) return null
+  return (
+    <>
+      <h3>Report {target.name}</h3>
+      <div className="sub" style={{ marginBottom: 10 }}>What is the problem? Moderators see your report and who sent it.</div>
+      <div className="chips wrap">
+        {REASONS.map(([k, l]) => (
+          <button key={k} className={'chip ' + (s.reportReason === k ? 'on' : '')} onClick={() => A.setReportDraft({ reason: k })}>{l}</button>
+        ))}
+      </div>
+      <textarea className="ta" style={{ marginTop: 14, height: 80 }} placeholder="Add details (optional)" maxLength={300} value={s.reportDetails} onChange={(e) => A.setReportDraft({ details: e.target.value })} />
+      <div className="row" style={{ marginTop: 14 }}>
+        <button className="btn sec" onClick={() => A.setSheet(null)}>Cancel</button>
+        <button className="btn" disabled={!s.reportReason} onClick={() => void A.submitReport()}>Send report</button>
+      </div>
+    </>
+  )
+}
+
+function BlockSheet() {
+  const { s, A } = useApp()
+  const target = reportTarget(s)
+  if (!target) return null
+  return (
+    <>
+      <h3>Block {target.name}?</h3>
+      <div className="sub" style={{ margin: '6px 0 18px' }}>You will not see each other's listings and neither of you can send messages. You can unblock later from your Profile.</div>
+      <div className="row">
+        <button className="btn sec" onClick={() => A.setSheet(null)}>Cancel</button>
+        <button className="btn" onClick={() => void A.blockUser(target.userId)}>Block</button>
+      </div>
+    </>
+  )
+}
+
+function BlockedSheet() {
+  const { s, A } = useApp()
+  return (
+    <>
+      <h3>Blocked users</h3>
+      {s.blocked.length ? (
+        s.blocked.map((id) => (
+          <div key={id} className="opt" style={{ justifyContent: 'space-between' }}>
+            <span>{profileOf(s, id).name}</span>
+            <button className="btn sm sec" style={{ width: 'auto', padding: '0 14px' }} onClick={() => void A.unblockUser(id)}>Unblock</button>
+          </div>
+        ))
+      ) : (
+        <div className="sub" style={{ margin: '8px 0 12px' }}>You have not blocked anyone.</div>
+      )}
+      <button className="btn sec" style={{ marginTop: 8 }} onClick={() => A.setSheet(null)}>Close</button>
     </>
   )
 }
@@ -197,6 +261,9 @@ export function SheetHost() {
         {s.sheet === 'filter' && <FilterSheet />}
         {s.sheet === 'offer' && <OfferSheet />}
         {s.sheet === 'report' && <ReportSheet />}
+        {s.sheet === 'reportReason' && <ReasonSheet />}
+        {s.sheet === 'block' && <BlockSheet />}
+        {s.sheet === 'blocked' && <BlockedSheet />}
         {s.sheet === 'remove' && <RemoveSheet />}
       </div>
     </>

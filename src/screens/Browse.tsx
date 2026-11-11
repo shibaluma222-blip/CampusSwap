@@ -70,7 +70,7 @@ export function Detail() {
         <button className="ib" aria-label="Save" style={fav ? { color: '#111' } : undefined} onClick={() => A.toggleFav(x.id)}>
           <Icon n="heart" s={22} f={fav ? 'currentColor' : 'none'} />
         </button>
-        <button className="ib" aria-label="More" onClick={() => A.setSheet('report')}><Icon n="more" /></button>
+        {!mine && <button className="ib" aria-label="More" onClick={() => A.setSheet('report')}><Icon n="more" /></button>}
       </div>
       <div className="scroll">
         <div className="ph" style={{ height: 250, borderRadius: 'var(--r)' }} onClick={() => x.photos.length > 1 && setPi((pi + 1) % x.photos.length)}>

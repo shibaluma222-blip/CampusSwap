@@ -102,7 +102,7 @@ export function Messages() {
   const { s, A } = useApp()
   const rows = s.threads
     .map((t) => ({ t, x: s.listings.find((l) => l.id === t.listingId), list: s.msgs[t.id] ?? [] }))
-    .filter((r) => r.x)
+    .filter((r) => r.x && !s.blocked.includes(partnerId(s, r.t)))
     .sort((a, b) => (b.list[b.list.length - 1]?.createdAt ?? b.t.createdAt).localeCompare(a.list[a.list.length - 1]?.createdAt ?? a.t.createdAt))
   return (
     <div className="screen">
@@ -174,6 +174,10 @@ export function Profile() {
         <div className="sec-t">Account</div>
         <div className="list">
           <button className="li" onClick={() => A.toast('Saved items view is not part of this demo')}><Icon n="heart" s={20} /><span className="s">Saved items</span></button>
+          <button className="li" onClick={() => A.setSheet('blocked')}><Icon n="block" s={20} /><span className="s">Blocked users{s.blocked.length ? ` (${s.blocked.length})` : ''}</span></button>
+          {me?.admin && (
+            <button className="li" onClick={() => A.go('admin')}><Icon n="shield" s={20} /><span className="s">Moderation</span></button>
+          )}
           <button className="li" onClick={() => A.toast('Help is not part of this demo')}><Icon n="help" s={20} /><span className="s">Help and safety tips</span></button>
           <button className="li" onClick={A.logout}><Icon n="out" s={20} /><span className="s">Log out</span></button>
         </div>
