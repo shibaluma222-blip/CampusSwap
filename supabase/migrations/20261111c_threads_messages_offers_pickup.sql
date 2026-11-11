@@ -1,0 +1,6 @@
+-- Applied to Supabase project pfpkklpjdpbayiqcqqvl via MCP on 2026-11-11.
+-- Tables: threads (one per listing + buyer), messages (text / offer / system). RLS: participants only.
+-- Clients may insert plain text only. Everything else goes through SECURITY DEFINER functions that check auth.uid():
+--   start_thread, send_offer (buyer), respond_offer (seller), propose_pickup, accept_pickup (other party), mark_read.
+-- messages and threads are added to the supabase_realtime publication.
+-- Advisor lint 0029 (signed-in users can execute these functions) is expected: they are the chat API.

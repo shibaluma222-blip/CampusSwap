@@ -108,7 +108,7 @@ export function Detail() {
       </div>
       <div className="footer">
         {mine ? (
-          <button className="btn sec" onClick={() => void A.removeListing(x.id)}>Remove my listing</button>
+          <button className="btn sec" onClick={() => A.setSheet('remove')}>Remove my listing</button>
         ) : (
           <button className="btn" onClick={A.startChat}><Icon n="chat" s={20} /> Chat / Make Offer</button>
         )}

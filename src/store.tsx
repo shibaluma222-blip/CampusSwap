@@ -1,8 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createListing, fetchAll, removeListing, setFavourite } from './api'
-import { ALLOWED_EMAIL, CATS, money, now } from './data'
+import {
+  acceptPickupRpc, createListing, fetchAll, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
+  removeListing, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread,
+  type MsgRow, type ThreadRow,
+} from './api'
+import { ALLOWED_EMAIL, CATS } from './data'
 import { supabase } from './supabase'
-import type { Chat, Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Seller, Sheet } from './types'
+import type { Filters, Listing, ListingType, Msg, Pickup, PostDraft, Screen, Seller, Sheet, Thread } from './types'
 
 export interface State {
   screen: Screen
@@ -16,18 +20,19 @@ export interface State {
   q: string
   F: Filters
   fav: number[]
-  cur: number
+  cur: number // listing being viewed
+  curThread: number | null // open conversation
   sheet: Sheet
   toast: string | null
-  chats: Record<number, Chat>
-  pickup: Pickup
+  threads: Thread[]
+  msgs: Record<number, Msg[]>
+  pickup: Pickup // draft shown on the Schedule screen
   handover: boolean
   rate: number
   rateTags: string[]
-  typing: boolean
   post: PostDraft
   listings: Listing[]
-  sellers: Record<string, Seller>
+  sellers: Record<string, Seller> // every profile we have seen (sellers and chat partners)
   loading: boolean
   posting: boolean
 }
@@ -49,20 +54,26 @@ const initial = (): State => ({
   F: DEFAULT_FILTERS,
   fav: [],
   cur: 0,
+  curThread: null,
   sheet: null,
   toast: null,
-  chats: {},
+  threads: [],
+  msgs: {},
   pickup: { spot: 'Hall Lobby', day: 'Fri', time: '15:00' },
   handover: false,
   rate: 0,
   rateTags: [],
-  typing: false,
   post: EMPTY_POST,
   listings: [],
   sellers: {},
   loading: false,
   posting: false,
 })
+
+const errText = (e: unknown, fallback: string) =>
+  e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : fallback
+
+const byTime = (a: Msg, b: Msg) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id
 
 export function useAppState() {
   const [s, setS] = useState<State>(initial)
@@ -71,15 +82,8 @@ export function useAppState() {
     ref.current = s
   })
   const toastTimer = useRef<number | undefined>(undefined)
-  const timers = useRef<number[]>([])
 
-  useEffect(() => {
-    const t = timers.current
-    return () => {
-      t.forEach(clearTimeout)
-      clearTimeout(toastTimer.current)
-    }
-  }, [])
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
 
   const patch = useCallback((p: Partial<State>) => setS((x) => ({ ...x, ...p })), [])
 
@@ -87,10 +91,7 @@ export function useAppState() {
     const toast = (t: string) => {
       setS((x) => ({ ...x, toast: t }))
       clearTimeout(toastTimer.current)
-      toastTimer.current = window.setTimeout(() => setS((x) => ({ ...x, toast: null })), 1900)
-    }
-    const later = (ms: number, fn: () => void) => {
-      timers.current.push(window.setTimeout(fn, ms))
+      toastTimer.current = window.setTimeout(() => setS((x) => ({ ...x, toast: null })), 2200)
     }
     const go = (screen: Screen, replace = false) =>
       setS((x) => ({
@@ -101,29 +102,48 @@ export function useAppState() {
       }))
     const back = () => setS((x) => ({ ...x, screen: x.hist[x.hist.length - 1] ?? 'home', hist: x.hist.slice(0, -1), sheet: null }))
     const tab = (screen: Screen) => setS((x) => ({ ...x, hist: [], screen, sheet: null }))
+    const fail = (e: unknown, fallback = 'Something went wrong') => toast(errText(e, fallback))
 
-    const setChat = (id: number, fn: (c: Chat) => Chat) =>
-      setS((x) => ({ ...x, chats: { ...x.chats, [id]: fn(x.chats[id] ?? { msgs: [], unread: 0 }) } }))
-    const pushMsg = (id: number, m: Omit<Msg, 'ts'>) => setChat(id, (c) => ({ ...c, msgs: [...c.msgs, { ts: now(), ...m }] }))
-    const sellerReply = (ms: number, fn: () => void) => {
-      setS((x) => ({ ...x, typing: true }))
-      later(ms, () => {
-        setS((x) => ({ ...x, typing: false }))
-        fn()
-      })
+    const loadListings = async (uid: string) => {
+      const d = await fetchAll(uid)
+      setS((x) => ({ ...x, listings: d.listings, sellers: { ...x.sellers, ...d.sellers }, fav: d.fav }))
     }
-    const listing = (id: number) => ref.current.listings.find((l) => l.id === id)
+    const refreshThreads = async () => {
+      const uid = ref.current.userId
+      if (!uid) return
+      try {
+        const d = await fetchThreads(uid)
+        setS((x) => ({ ...x, threads: d.threads, msgs: d.msgs, sellers: { ...x.sellers, ...d.profiles } }))
+      } catch {
+        // transient network errors are retried by the next poll
+      }
+    }
+    const markRead = async (threadId: number) => {
+      try {
+        await markReadRpc(threadId)
+        await refreshThreads()
+      } catch {
+        /* ignore */
+      }
+    }
+    const isViewing = (threadId: number) => ref.current.screen === 'chat' && ref.current.curThread === threadId
 
     const loadData = async (uid: string) => {
       setS((x) => ({ ...x, loading: true }))
       try {
-        const d = await fetchAll(uid)
-        setS((x) => ({ ...x, listings: d.listings, sellers: d.sellers, fav: d.fav, loading: false }))
+        await Promise.all([loadListings(uid), refreshThreads()])
       } catch (e) {
-        setS((x) => ({ ...x, loading: false }))
-        toast(e instanceof Error ? e.message : 'Could not load listings')
+        fail(e, 'Could not load listings')
       }
+      setS((x) => ({ ...x, loading: false }))
     }
+
+    const upsertMsg = (m: Msg) =>
+      setS((x) => {
+        const list = x.msgs[m.threadId] ?? []
+        const next = list.some((i) => i.id === m.id) ? list.map((i) => (i.id === m.id ? m : i)) : [...list, m].sort(byTime)
+        return { ...x, msgs: { ...x.msgs, [m.threadId]: next } }
+      })
 
     return {
       toast,
@@ -131,6 +151,7 @@ export function useAppState() {
       back,
       tab,
       loadData,
+      refreshThreads,
       async sendCode(email: string) {
         const em = email.trim().toLowerCase()
         if (!ALLOWED_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
@@ -173,51 +194,90 @@ export function useAppState() {
         patch({ cur: id })
         go('detail')
       },
-      startChat() {
-        setChat(ref.current.cur, (c) => c)
-        go('chat')
+
+      // ----- chat -----
+      async startChat() {
+        try {
+          const tid = await startThread(ref.current.cur)
+          await refreshThreads()
+          patch({ curThread: tid })
+          go('chat')
+          void markRead(tid)
+        } catch (e) {
+          fail(e, 'Could not open chat')
+        }
       },
-      openChat(id: number) {
-        setS((x) => ({ ...x, cur: id }))
-        setChat(id, (c) => ({ ...c, unread: 0 }))
+      openThread(tid: number) {
+        const t = ref.current.threads.find((i) => i.id === tid)
+        if (!t) return
+        setS((x) => ({ ...x, cur: t.listingId, curThread: tid }))
         go('chat')
+        void markRead(tid)
       },
       setSheet: (sheet: Sheet) => patch({ sheet }),
-      sendMsg(txt: string) {
-        const id = ref.current.cur
-        pushMsg(id, { w: 'me', t: txt })
-        sellerReply(1100, () =>
-          pushMsg(id, { w: 'them', t: /available|still/i.test(txt) ? 'Yes, it is still available!' : 'Sure! Lobby pickup works for me.' }),
-        )
+      async sendMsg(txt: string) {
+        const { userId, curThread } = ref.current
+        if (!userId || !curThread) return
+        try {
+          upsertMsg(await sendText(userId, curThread, txt))
+        } catch (e) {
+          fail(e, 'Message not sent')
+        }
       },
-      sendOffer(raw: string) {
-        const id = ref.current.cur
-        const x = listing(id)
+      async sendOffer(raw: string) {
+        const tid = ref.current.curThread
         const v = parseInt(raw)
-        if (!x || !v || v <= 0) return toast('Enter a valid amount')
+        if (!tid || !v || v <= 0) return toast('Enter a valid amount')
         patch({ sheet: null })
-        pushMsg(id, { w: 'me', offer: v })
-        sellerReply(1300, () => {
-          if (v >= x.p * 0.8) {
-            setChat(id, (c) => ({ ...c, agreed: v }))
-            pushMsg(id, { w: 'them', t: `Deal at ${money(v)}. Let's set a pickup time.` })
-            pushMsg(id, { card: true })
-          } else {
-            pushMsg(id, { w: 'them', t: `That's a bit low. Could you do ${money(Math.ceil((x.p * 0.9) / 10) * 10)}?` })
-          }
-        })
+        try {
+          await sendOfferRpc(tid, v)
+          await refreshThreads()
+        } catch (e) {
+          fail(e, 'Offer not sent')
+        }
+      },
+      async respondOffer(messageId: number, accept: boolean) {
+        try {
+          await respondOfferRpc(messageId, accept)
+          await refreshThreads()
+        } catch (e) {
+          fail(e)
+        }
       },
       setPickup: (p: Partial<Pickup>) => setS((x) => ({ ...x, pickup: { ...x.pickup, ...p } })),
-      confirmPickup() {
-        const { cur: id, pickup: p } = ref.current
-        pushMsg(id, { sys: true, t: `Pickup proposed: ${p.day} ${p.time}, ${p.spot}` })
-        setS((x) => ({ ...x, screen: 'chat', hist: x.hist.slice(0, -1) }))
-        sellerReply(1400, () => {
-          setChat(id, (c) => ({ ...c, pickup: { ...p } }))
-          pushMsg(id, { sys: true, icon: 'check', t: 'Seller accepted the pickup time' })
-          pushMsg(id, { w: 'them', t: 'Works for me. See you in the lobby!' })
-        })
+      async confirmPickup() {
+        const { curThread: tid, pickup: p } = ref.current
+        if (!tid) return
+        try {
+          await proposePickupRpc(tid, p.spot, p.day, p.time)
+          setS((x) => ({ ...x, screen: 'chat', hist: x.hist.slice(0, -1) }))
+          await refreshThreads()
+        } catch (e) {
+          fail(e, 'Could not send pickup proposal')
+        }
       },
+      async acceptPickup() {
+        const tid = ref.current.curThread
+        if (!tid) return
+        try {
+          await acceptPickupRpc(tid)
+          await refreshThreads()
+        } catch (e) {
+          fail(e)
+        }
+      },
+      onMessageRow(row: MsgRow) {
+        const m = mapMsg(row)
+        if (!ref.current.threads.some((t) => t.id === m.threadId)) return void refreshThreads()
+        upsertMsg(m)
+        if (m.sender !== ref.current.userId && isViewing(m.threadId)) void markRead(m.threadId)
+      },
+      onThreadRow(row: ThreadRow) {
+        const t = mapThread(row)
+        if (!ref.current.threads.some((i) => i.id === t.id)) return void refreshThreads()
+        setS((x) => ({ ...x, threads: x.threads.map((i) => (i.id === t.id ? t : i)) }))
+      },
+
       simulateScan() {
         patch({ handover: true })
         toast('Seller scanned your QR')
@@ -249,13 +309,13 @@ export function useAppState() {
         setS((x) => ({ ...x, posting: true }))
         try {
           await createListing(userId, p, files)
-          await loadData(userId)
+          await loadListings(userId)
           setS((x) => ({ ...x, posting: false, post: EMPTY_POST, hist: [], screen: 'home', type: p.type, cat: 'All' }))
           toast('Listing posted')
           return true
         } catch (e) {
           setS((x) => ({ ...x, posting: false }))
-          toast(e instanceof Error ? e.message : 'Could not post listing')
+          fail(e, 'Could not post listing')
           return false
         }
       },
@@ -265,7 +325,7 @@ export function useAppState() {
           setS((x) => ({ ...x, listings: x.listings.filter((l) => l.id !== id), hist: [], screen: 'home' }))
           toast('Listing removed')
         } catch (e) {
-          toast(e instanceof Error ? e.message : 'Could not remove listing')
+          fail(e, 'Could not remove listing')
         }
       },
       setType: (type: ListingType) => patch({ type, cat: 'All' }),
@@ -289,6 +349,25 @@ export function useAppState() {
     return () => data.subscription.unsubscribe()
   }, [A])
 
+  // Realtime chat. RLS limits what each user receives. A slow poll is the safety net if the socket drops.
+  useEffect(() => {
+    if (!s.userId) return
+    const channel = supabase
+      .channel('campusswap-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (p) => {
+        if (p.eventType !== 'DELETE') A.onMessageRow(p.new as MsgRow)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'threads' }, (p) => {
+        if (p.eventType !== 'DELETE') A.onThreadRow(p.new as ThreadRow)
+      })
+      .subscribe()
+    const poll = window.setInterval(() => void A.refreshThreads(), 10000)
+    return () => {
+      window.clearInterval(poll)
+      void supabase.removeChannel(channel)
+    }
+  }, [s.userId, A])
+
   return { s, patch, A }
 }
 
@@ -311,7 +390,12 @@ export function useApp() {
   return c
 }
 
-export const sellerOf = (s: State, l: Listing): Seller => s.sellers[l.sellerId] ?? UNKNOWN_SELLER
+export const profileOf = (s: State, id: string | null | undefined): Seller => (id && s.sellers[id]) || UNKNOWN_SELLER
+export const sellerOf = (s: State, l: Listing): Seller => profileOf(s, l.sellerId)
+export const partnerId = (s: State, t: Thread) => (t.buyerId === s.userId ? t.sellerId : t.buyerId)
+export const myReadAt = (s: State, t: Thread) => (t.buyerId === s.userId ? t.buyerReadAt : t.sellerReadAt)
+export const unreadOf = (s: State, t: Thread) => (s.msgs[t.id] ?? []).filter((m) => m.sender !== s.userId && m.createdAt > myReadAt(s, t)).length
+export const totalUnread = (s: State) => s.threads.reduce((n, t) => n + unreadOf(s, t), 0)
 
 export function useFiltered() {
   const { s } = useApp()

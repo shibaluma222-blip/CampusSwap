@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Tabs } from '../components'
-import { CATS, initials, money, SPOTS } from '../data'
+import { CATS, clock, initials, money, SPOTS } from '../data'
 import { Icon, ImgPlaceholder } from '../icons'
-import { sellerOf, useApp } from '../store'
+import { partnerId, profileOf, unreadOf, useApp } from '../store'
 
 const MAX_PHOTOS = 3
 
@@ -100,33 +100,34 @@ export function Post() {
 
 export function Messages() {
   const { s, A } = useApp()
-  const ids = Object.keys(s.chats).map(Number).filter((i) => s.chats[i].msgs.length && s.listings.some((l) => l.id === i))
+  const rows = s.threads
+    .map((t) => ({ t, x: s.listings.find((l) => l.id === t.listingId), list: s.msgs[t.id] ?? [] }))
+    .filter((r) => r.x)
+    .sort((a, b) => (b.list[b.list.length - 1]?.createdAt ?? b.t.createdAt).localeCompare(a.list[a.list.length - 1]?.createdAt ?? a.t.createdAt))
   return (
     <div className="screen">
       <div className="top"><h1>Messages</h1></div>
       <div className="scroll" style={{ paddingTop: 0 }}>
-        {ids.length ? (
-          ids.map((id) => {
-            const x = s.listings.find((l) => l.id === id)!
-            const seller = sellerOf(s, x)
-            const c = s.chats[id]
-            const last = [...c.msgs].reverse().find((m) => !m.sys) ?? c.msgs[c.msgs.length - 1]
+        {rows.length ? (
+          rows.map(({ t, x, list }) => {
+            const partner = profileOf(s, partnerId(s, t))
+            const last = list[list.length - 1]
+            const unread = unreadOf(s, t)
+            const preview = !last ? 'No messages yet' : last.kind === 'offer' ? 'Offer: ' + money(last.amount ?? 0) : last.body
             return (
-              <button key={id} className="thread" onClick={() => A.openChat(id)}>
-                <div className="av">{initials(seller.name)}</div>
+              <button key={t.id} className="thread" onClick={() => A.openThread(t.id)}>
+                <div className="av">{initials(partner.name)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="n"><b>{seller.name}</b><span>{last.ts}</span></div>
-                  <div className="pv" style={c.unread ? { color: 'var(--ink)', fontWeight: 600 } : undefined}>
-                    {last.offer ? 'Offer: ' + money(last.offer) : last.card ? 'Offer accepted' : last.t}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--g4)', marginTop: 2 }}>{x.t}</div>
+                  <div className="n"><b>{partner.name}</b><span>{last ? clock(last.createdAt) : ''}</span></div>
+                  <div className="pv" style={unread ? { color: 'var(--ink)', fontWeight: 600 } : undefined}>{preview}</div>
+                  <div style={{ fontSize: 12, color: 'var(--g4)', marginTop: 2 }}>{x!.t}</div>
                 </div>
-                {c.unread > 0 && <span className="tag k">{c.unread}</span>}
+                {unread > 0 && <span className="tag k">{unread}</span>}
               </button>
             )
           })
         ) : (
-          <div className="empty">No messages yet. Open a listing to start a chat.</div>
+          <div className="empty">{s.loading ? 'Loading...' : 'No messages yet. Open a listing to start a chat.'}</div>
         )}
       </div>
       <Tabs active="messages" />

@@ -1,5 +1,3 @@
-import type { IconName } from './icons'
-
 export type ListingType = 'goods' | 'services'
 
 export interface Seller {
@@ -30,21 +28,38 @@ export interface Pickup {
   time: string
 }
 
+export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'superseded'
+
 export interface Msg {
-  ts: string
-  w?: 'me' | 'them'
-  t?: string
-  offer?: number
-  sys?: boolean
-  icon?: IconName
-  card?: boolean
+  id: number
+  threadId: number
+  sender: string | null // null = system note
+  kind: 'text' | 'offer' | 'system'
+  body: string
+  amount?: number
+  offerStatus?: OfferStatus
+  createdAt: string
 }
 
-export interface Chat {
-  msgs: Msg[]
-  unread: number
+export interface ThreadPickup {
+  spot: string
+  day: string
+  time: string
+  status: 'proposed' | 'accepted'
+  by: string | null
+}
+
+export interface Thread {
+  id: number
+  listingId: number
+  buyerId: string
+  sellerId: string
+  status: 'open' | 'agreed' | 'completed'
   agreed?: number
-  pickup?: Pickup
+  pickup?: ThreadPickup
+  buyerReadAt: string
+  sellerReadAt: string
+  createdAt: string
 }
 
 export type Screen =
@@ -59,7 +74,7 @@ export type Screen =
   | 'messages'
   | 'profile'
 
-export type Sheet = 'filter' | 'offer' | 'report' | null
+export type Sheet = 'filter' | 'offer' | 'report' | 'remove' | null
 
 export interface Filters {
   max: number

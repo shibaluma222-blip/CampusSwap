@@ -33,3 +33,9 @@ export const ago = (iso: string) => {
   if (h < 24) return `${h}h ago`
   return `${Math.round(h / 24)}d ago`
 }
+
+export const clock = (iso: string) => {
+  const d = new Date(iso)
+  const time = `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`
+  return d.toDateString() === new Date().toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`
+}

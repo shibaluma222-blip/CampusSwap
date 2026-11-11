@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { money } from './data'
 import { Icon, ImgPlaceholder, type IconName } from './icons'
-import { useApp, useFiltered } from './store'
+import { totalUnread, useApp, useFiltered } from './store'
 import type { Screen } from './types'
 
 export function Tabs({ active }: { active: Screen }) {
   const { s, A } = useApp()
-  const unread = Object.values(s.chats).reduce((n, c) => n + c.unread, 0)
+  const unread = totalUnread(s)
   const tabs: [Screen, string, IconName][] = [
     ['home', 'Home', 'home'],
     ['post', 'Post', 'plus'],
@@ -170,6 +170,22 @@ function ReportSheet() {
   )
 }
 
+function RemoveSheet() {
+  const { s, A } = useApp()
+  const x = s.listings.find((l) => l.id === s.cur)
+  if (!x) return null
+  return (
+    <>
+      <h3>Remove this listing?</h3>
+      <div className="sub" style={{ margin: '6px 0 18px' }}>"{x.t}" will disappear from Home and buyers can no longer message you about it.</div>
+      <div className="row">
+        <button className="btn sec" onClick={() => A.setSheet(null)}>Keep it</button>
+        <button className="btn" onClick={() => void A.removeListing(x.id)}>Remove</button>
+      </div>
+    </>
+  )
+}
+
 export function SheetHost() {
   const { s, A } = useApp()
   if (!s.sheet) return null
@@ -181,6 +197,7 @@ export function SheetHost() {
         {s.sheet === 'filter' && <FilterSheet />}
         {s.sheet === 'offer' && <OfferSheet />}
         {s.sheet === 'report' && <ReportSheet />}
+        {s.sheet === 'remove' && <RemoveSheet />}
       </div>
     </>
   )
