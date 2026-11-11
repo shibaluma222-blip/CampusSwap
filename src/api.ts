@@ -275,3 +275,9 @@ export async function fetchReports(): Promise<{ reports: Report[]; profiles: Rec
   }))
   return { reports, profiles }
 }
+
+export async function updateProfile(uid: string, displayName: string, hall: string | null) {
+  const { error } = await supabase.from('profiles').update({ display_name: displayName.trim(), hall }).eq('id', uid)
+  if (error) throw error
+}
+export const deleteAccountRpc = () => rpc<null>('delete_my_account', {})

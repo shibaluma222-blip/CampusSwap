@@ -78,8 +78,11 @@ export type Screen =
   | 'profile'
   | 'admin'
   | 'saved'
+  | 'settings'
+  | 'editProfile'
+  | 'info'
 
-export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | null
+export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | 'deleteAccount' | null
 
 export interface Filters {
   max: number
@@ -111,3 +114,5 @@ export interface Report {
   adminNote: string
   createdAt: string
 }
+
+export type InfoKey = 'safety' | 'help' | 'terms'

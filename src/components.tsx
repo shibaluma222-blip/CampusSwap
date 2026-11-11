@@ -237,6 +237,37 @@ function BlockedSheet() {
   )
 }
 
+function DeleteAccountSheet() {
+  const { A } = useApp()
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  return (
+    <>
+      <h3>Delete your account?</h3>
+      <div className="sub" style={{ margin: '6px 0 12px' }}>
+        This permanently removes your profile, listings, chats, favourites and ratings. It cannot be undone.
+      </div>
+      <div className="field" style={{ marginBottom: 14 }}>
+        <input placeholder="Type DELETE to confirm" autoCapitalize="characters" autoComplete="off" value={text} onChange={(e) => setText(e.target.value)} />
+      </div>
+      <div className="row">
+        <button className="btn sec" onClick={() => A.setSheet(null)}>Cancel</button>
+        <button
+          className="btn"
+          disabled={text.trim().toUpperCase() !== 'DELETE' || busy}
+          onClick={async () => {
+            setBusy(true)
+            await A.deleteAccount()
+            setBusy(false)
+          }}
+        >
+          Delete
+        </button>
+      </div>
+    </>
+  )
+}
+
 function RemoveSheet() {
   const { s, A } = useApp()
   const x = s.listings.find((l) => l.id === s.cur)
@@ -267,6 +298,7 @@ export function SheetHost() {
         {s.sheet === 'reportReason' && <ReasonSheet />}
         {s.sheet === 'block' && <BlockSheet />}
         {s.sheet === 'blocked' && <BlockedSheet />}
+        {s.sheet === 'deleteAccount' && <DeleteAccountSheet />}
         {s.sheet === 'remove' && <RemoveSheet />}
       </div>
     </>

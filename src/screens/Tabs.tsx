@@ -141,12 +141,12 @@ export function Profile() {
   const saved = useSaved()
   const me = s.userId ? s.sellers[s.userId] : undefined
   const name = me?.name ?? (s.email ? s.email.split('@')[0] : 'you')
-  const init = (name.replace(/[^a-z]/gi, '').slice(0, 2) || 'Me').toUpperCase()
+  const init = initials(name).slice(0, 2).toUpperCase() || 'ME'
   return (
     <div className="screen">
       <div className="top">
         <h1>Profile</h1>
-        <button className="ib" aria-label="Notifications" onClick={() => A.toast('Notifications are not part of this demo')}><Icon n="bell" s={22} /></button>
+        <button className="ib" aria-label="Settings" onClick={() => A.go('settings')}><Icon n="gear" s={22} /></button>
       </div>
       <div className="scroll" style={{ paddingTop: 0 }}>
         <div className="center" style={{ padding: '6px 0 18px' }}>
@@ -175,12 +175,10 @@ export function Profile() {
         <div className="sec-t">Account</div>
         <div className="list">
           <button className="li" onClick={() => A.go('saved')}><Icon n="heart" s={20} /><span className="s">Saved items{saved.length ? ` (${saved.length})` : ''}</span></button>
-          <button className="li" onClick={() => A.setSheet('blocked')}><Icon n="block" s={20} /><span className="s">Blocked users{s.blocked.length ? ` (${s.blocked.length})` : ''}</span></button>
           {me?.admin && (
             <button className="li" onClick={() => A.go('admin')}><Icon n="shield" s={20} /><span className="s">Moderation</span></button>
           )}
-          <button className="li" onClick={() => A.toast('Help is not part of this demo')}><Icon n="help" s={20} /><span className="s">Help and safety tips</span></button>
-          <button className="li" onClick={A.logout}><Icon n="out" s={20} /><span className="s">Log out</span></button>
+          <button className="li" onClick={() => A.go('settings')}><Icon n="gear" s={20} /><span className="s">Settings</span></button>
         </div>
       </div>
       <Tabs active="profile" />

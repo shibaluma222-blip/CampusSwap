@@ -1,0 +1,6 @@
+-- Applied to Supabase project pfpkklpjdpbayiqcqqvl via MCP on 2026-11-11.
+-- profiles.display_name must be 1-30 chars.
+-- delete_my_account(): deletes the caller's auth user (cascades to profile, listings, threads, messages, favourites, blocks, ratings, reports).
+--   Refuses admins and @demo.campusswap.test accounts so the demo cannot be broken by accident.
+-- profiles: table-wide SELECT revoked, column SELECT granted without email, so students cannot read each other's email via the API.
+--   (The app gets your own email from the auth session.)

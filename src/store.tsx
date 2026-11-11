@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  acceptPickupRpc, blockUser, confirmHandoverRpc, createListing, fetchAll, fetchReports, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
-  removeListing, resolveReportRpc, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser,
+  acceptPickupRpc, blockUser, confirmHandoverRpc, createListing, deleteAccountRpc, fetchAll, fetchReports, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
+  removeListing, resolveReportRpc, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser, updateProfile,
   type MsgRow, type ThreadRow,
 } from './api'
 import { ALLOWED_EMAIL, CATS } from './data'
 import { supabase } from './supabase'
-import type { Filters, Listing, ListingType, Msg, Pickup, PostDraft, Report, ReportReason, Screen, Seller, Sheet, Thread } from './types'
+import type { Filters, InfoKey, Listing, ListingType, Msg, Pickup, PostDraft, Report, ReportReason, Screen, Seller, Sheet, Thread } from './types'
 
 export interface State {
   screen: Screen
@@ -39,6 +39,7 @@ export interface State {
   reports: Report[] // admin only
   reportReason: ReportReason | null
   reportDetails: string
+  info: InfoKey
 }
 
 const DEFAULT_FILTERS: Filters = { max: 5000, cond: [], sort: 'new' }
@@ -76,6 +77,7 @@ const initial = (): State => ({
   reports: [],
   reportReason: null,
   reportDetails: '',
+  info: 'safety',
 })
 
 const errText = (e: unknown, fallback: string) =>
@@ -416,6 +418,39 @@ export function useAppState() {
         } catch (e) {
           fail(e, 'Could not update report')
         }
+      },
+      openInfo(info: InfoKey) {
+        setS((x) => ({ ...x, info }))
+        go('info')
+      },
+      async saveProfile(name: string, hall: string | null): Promise<boolean> {
+        const uid = ref.current.userId
+        const n = name.trim()
+        if (!uid) return false
+        if (!n || n.length > 30) {
+          toast('Name must be 1 to 30 characters')
+          return false
+        }
+        try {
+          await updateProfile(uid, n, hall)
+          setS((x) => ({ ...x, sellers: { ...x.sellers, [uid]: { ...(x.sellers[uid] ?? UNKNOWN_SELLER), name: n, hall: hall ?? '' } } }))
+          toast('Profile saved')
+          return true
+        } catch (e) {
+          fail(e, 'Could not save profile')
+          return false
+        }
+      },
+      async deleteAccount() {
+        try {
+          await deleteAccountRpc()
+        } catch (e) {
+          return fail(e, 'Could not delete account')
+        }
+        await supabase.auth.signOut({ scope: 'local' })
+        setS(() => ({ ...initial(), loading: false, toast: 'Account deleted' }))
+        clearTimeout(toastTimer.current)
+        toastTimer.current = window.setTimeout(() => setS((x) => ({ ...x, toast: null })), 2500)
       },
       setType: (type: ListingType) => patch({ type, cat: 'All' }),
       resetFilters: () => patch({ F: DEFAULT_FILTERS }),

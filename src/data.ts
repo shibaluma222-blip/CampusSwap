@@ -39,3 +39,6 @@ export const clock = (iso: string) => {
   const time = `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`
   return d.toDateString() === new Date().toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`
 }
+
+export const HALLS = ['Block A', 'Block B', 'Block C']
+export const CONTACT_EMAIL = 'chwong922-c@my.cityu.edu.hk'
