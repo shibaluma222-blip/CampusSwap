@@ -3,16 +3,19 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-// iOS Safari does not shrink the page when the keyboard opens, so the chat box can end up hidden behind it.
-// Track the visible height (above the keyboard) in a CSS variable instead. Skipped while pinch-zoomed.
+// iOS Safari does not shrink the page when the keyboard opens. It scrolls the visible area up instead (offsetTop),
+// so a bottom-anchored chat box ends up at the top of the screen or behind the keyboard.
+// Pin the app to the visible area: same height and same top offset as the visual viewport. Skipped while pinch-zoomed.
 const vv = window.visualViewport
 if (vv) {
   const sync = () => {
     if (Math.abs(vv.scale - 1) > 0.01) return
-    document.documentElement.style.setProperty('--app-h', `${Math.round(vv.height)}px`)
-    if (vv.offsetTop > 0) window.scrollTo(0, 0)
+    const root = document.documentElement.style
+    root.setProperty('--app-h', `${Math.round(vv.height)}px`)
+    root.setProperty('--app-top', `${Math.round(vv.offsetTop)}px`)
   }
   vv.addEventListener('resize', sync)
+  vv.addEventListener('scroll', sync)
   sync()
 }
 
