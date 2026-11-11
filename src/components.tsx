@@ -37,7 +37,9 @@ export function Toast() {
 }
 
 export function ListingGrid() {
-  return <CardGrid items={useFiltered()} empty="No results. Try removing a filter." />
+  const { s } = useApp()
+  const none = !s.listings.some((x) => x.status === 'active')
+  return <CardGrid items={useFiltered()} empty={none ? 'No listings yet. Tap Post to add the first one.' : 'No results. Try removing a filter.'} />
 }
 
 export function CardGrid({ items: r, empty }: { items: Listing[]; empty: string }) {
