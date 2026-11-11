@@ -1,0 +1,50 @@
+import { SheetHost, Toast } from './components'
+import { Detail, Home } from './screens/Browse'
+import { Chat, Confirm, Rate, Schedule } from './screens/Deal'
+import { Login } from './screens/Login'
+import { Messages, Post, Profile } from './screens/Tabs'
+import { AppProvider, useApp } from './store'
+import type { ReactNode } from 'react'
+import type { Screen } from './types'
+
+const SCREENS: Record<Screen, () => ReactNode> = {
+  login: Login,
+  home: Home,
+  detail: Detail,
+  chat: Chat,
+  schedule: Schedule,
+  confirm: Confirm,
+  rate: Rate,
+  post: Post,
+  messages: Messages,
+  profile: Profile,
+}
+
+function Shell() {
+  const { s } = useApp()
+  const Current = SCREENS[s.screen]
+  return (
+    <div id="phone">
+      <div id="status">
+        <span>9:41</span>
+        <span className="sb">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#111"><rect x="0" y="8" width="3" height="4" rx="1" /><rect x="5" y="5" width="3" height="7" rx="1" /><rect x="10" y="2.5" width="3" height="9.5" rx="1" /><rect x="15" y="0" width="3" height="12" rx="1" /></svg>
+          <svg width="24" height="12" viewBox="0 0 24 12"><rect x=".5" y=".5" width="20" height="11" rx="3" fill="none" stroke="#111" /><rect x="2" y="2" width="17" height="8" rx="1.5" fill="#111" /><rect x="21.5" y="4" width="2" height="4" rx="1" fill="#111" /></svg>
+        </span>
+      </div>
+      <div id="view">
+        <Current key={s.screen} />
+        <SheetHost />
+        <Toast />
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <Shell />
+    </AppProvider>
+  )
+}
