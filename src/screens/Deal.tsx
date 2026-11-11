@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { getHandoverToken } from '../api'
 import { clock, initials, money } from '../data'
 import { Icon, ImgPlaceholder } from '../icons'
 import { Qr } from '../Qr'
+import { Scanner } from '../Scanner'
 import { partnerId, profileOf, useApp } from '../store'
 import type { Msg } from '../types'
 
@@ -48,9 +50,19 @@ function OfferBubble({ m, mine, name }: { m: Msg; mine: boolean; name: string })
 function StatusCard() {
   const { s, A } = useApp()
   const { t, x, partner } = useDeal()
-  if (!t || !x || t.status !== 'agreed') return null
+  if (!t || !x || t.status === 'open') return null
   const first = partner?.name.split(' ')[0] ?? 'them'
   const p = t.pickup
+  if (t.status === 'completed') {
+    const canRate = t.buyerId === s.userId && !s.rated.includes(t.id)
+    return (
+      <div className="deal">
+        <small>Deal complete</small>
+        <b>{money(t.agreed ?? x.p, x.unit)}</b>
+        {canRate && <button className="btn sm" onClick={() => A.go('rate')}><Icon n="star" s={16} /> Rate Seller</button>}
+      </div>
+    )
+  }
   if (!p) {
     return (
       <div className="deal">
@@ -105,7 +117,7 @@ export function Chat() {
     setMsg('')
   }
   const sm = { width: 'auto', padding: '0 14px', flex: 'none' } as const
-  const accepted = t.pickup?.status === 'accepted'
+  const accepted = t.pickup?.status === 'accepted' && t.status === 'agreed'
   return (
     <div className="screen">
       <div className="top" style={{ borderBottom: '1px solid var(--g2)', paddingBottom: 8 }}>
@@ -216,13 +228,45 @@ export function Schedule() {
   )
 }
 
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : 'Something went wrong')
+const prettyCode = (c: string) => c.replace(/(.{4})(?=.)/g, '$1-')
+
 export function Confirm() {
   const { s, A } = useApp()
   const { t, x, partner, iAmBuyer } = useDeal()
+  const [token, setToken] = useState('')
+  const [err, setErr] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const tid = t?.id
+  const done = t?.status === 'completed'
+
+  useEffect(() => {
+    if (!tid || !iAmBuyer || done) return
+    let live = true
+    getHandoverToken(tid)
+      .then((v) => live && setToken(v))
+      .catch((e) => live && setErr(errMsg(e)))
+    return () => { live = false }
+  }, [tid, iAmBuyer, done])
+
   if (!t || !x || !partner || !t.pickup) return null
   const p = t.pickup
   const first = partner.name.split(' ')[0]
-  const d = s.handover
+
+  const confirm = async (raw: string) => {
+    setBusy(true)
+    await A.confirmHandover(raw)
+    setBusy(false)
+  }
+  const onScan = (text: string) => {
+    setScanning(false)
+    const m = /^CS1:(\d+):([A-Za-z0-9]+)$/.exec(text.trim())
+    if (!m || Number(m[1]) !== t.id) return A.toast('This QR code is not for this deal')
+    void confirm(m[2])
+  }
+
   return (
     <div className="screen">
       <div className="top">
@@ -231,19 +275,36 @@ export function Confirm() {
         <div style={{ width: 40 }} />
       </div>
       <div className="scroll center">
-        <div className="bigcheck" style={{ marginTop: 6 }}>
-          <Icon n={d ? 'check' : 'qr'} s={d ? 52 : 44} w={d ? 2.4 : 1.6} />
-        </div>
-        <div style={{ fontSize: 26, fontWeight: 800 }}>{d ? 'Handover confirmed' : 'All Set!'}</div>
-        <div className="sub" style={{ marginTop: 4 }}>{d ? `You got the ${x.t.toLowerCase()}.` : 'Your pickup is confirmed.'}</div>
-        <div className={'qrbox ' + (d ? 'done' : '')}>
-          <Qr seed={'CS-' + t.id + p.spot + p.day + p.time} />
-          {d && <div className="ov"><Icon n="check" s={70} w={2.2} /></div>}
-        </div>
-        <div className="sub" style={{ marginBottom: 14 }}>
-          {d ? 'Seller scanned your code' : iAmBuyer ? `Show this code to ${first} at pickup` : `Scan ${first}'s code at pickup`}
-        </div>
-        <div className="infocard">
+        {done ? (
+          <>
+            <div className="bigcheck" style={{ marginTop: 6 }}><Icon n="check" s={52} w={2.4} /></div>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>Handover confirmed</div>
+            <div className="sub" style={{ marginTop: 4 }}>{iAmBuyer ? `You got the ${x.t.toLowerCase()}.` : `${first} has the ${x.t.toLowerCase()}.`}</div>
+          </>
+        ) : iAmBuyer ? (
+          <>
+            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6 }}>All Set!</div>
+            <div className="sub" style={{ marginTop: 4 }}>Show this code to {first} at pickup.</div>
+            <div className="qrbox">{token ? <Qr value={`CS1:${t.id}:${token}`} /> : <div className="ov sub">{err || 'Loading code...'}</div>}</div>
+            {token && <div className="codebox">{prettyCode(token)}</div>}
+            <div className="sub" style={{ marginBottom: 14 }}>{first} scans this in the app to confirm. Only share it in person.</div>
+          </>
+        ) : (
+          <>
+            <div className="bigcheck" style={{ marginTop: 6 }}><Icon n="qr" s={44} w={1.6} /></div>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>Confirm handover</div>
+            <div className="sub" style={{ margin: '4px 0 16px' }}>When you meet {first}, scan their QR code to complete the deal.</div>
+            <button className="btn" disabled={busy} onClick={() => setScanning(true)}><Icon n="cam" s={20} /> Scan QR code</button>
+            <div className="sub" style={{ margin: '18px 0 8px' }}>No camera? Enter the code {first} shows</div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <input placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" autoComplete="off" maxLength={14} value={code} onChange={(e) => setCode(e.target.value)} />
+              </div>
+              <button className="btn sec" style={{ width: 96 }} disabled={busy || code.replace(/[^A-Za-z0-9]/g, '').length < 12} onClick={() => void confirm(code)}>Confirm</button>
+            </div>
+          </>
+        )}
+        <div className="infocard" style={{ marginTop: 18 }}>
           <Icon n="cal" s={24} />
           <div><small>Pickup</small><b>{p.day} {p.time}, {p.spot}</b></div>
         </div>
@@ -251,15 +312,15 @@ export function Confirm() {
           <Icon n="tag" s={24} />
           <div><small>Agreed price</small><b>{money(t.agreed ?? x.p, x.unit)}</b></div>
         </div>
-        {!d && <button className="btn sec sm" style={{ marginTop: 16 }} onClick={A.simulateScan}>Demo: simulate seller scan</button>}
       </div>
       <div className="footer">
-        {iAmBuyer ? (
-          <button className="btn" disabled={!d} onClick={() => A.go('rate')}>Rate Seller</button>
+        {done && iAmBuyer && !s.rated.includes(t.id) ? (
+          <button className="btn" onClick={() => A.go('rate')}>Rate Seller</button>
         ) : (
           <button className="btn sec" onClick={A.back}>Back to chat</button>
         )}
       </div>
+      {scanning && <Scanner onResult={onScan} onClose={() => setScanning(false)} />}
     </div>
   )
 }
@@ -267,6 +328,7 @@ export function Confirm() {
 export function Rate() {
   const { s, A } = useApp()
   const { x, partner } = useDeal()
+  const [comment, setComment] = useState('')
   if (!x || !partner) return null
   const tags = ['On time', 'As described', 'Friendly', 'Easy handover', 'Fair price']
   return (
@@ -292,9 +354,9 @@ export function Rate() {
             <button key={t} className={'chip ' + (s.rateTags.includes(t) ? 'on' : '')} onClick={() => A.toggleRateTag(t)}>{t}</button>
           ))}
         </div>
-        <textarea className="ta" placeholder="Add a comment (optional)" style={{ marginTop: 20 }} />
+        <textarea className="ta" placeholder="Add a comment (optional)" maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} style={{ marginTop: 20 }} />
       </div>
-      <div className="footer"><button className="btn" disabled={!s.rate} onClick={A.submitRate}>Submit Rating</button></div>
+      <div className="footer"><button className="btn" disabled={!s.rate} onClick={() => void A.submitRate(comment)}>Submit Rating</button></div>
     </div>
   )
 }

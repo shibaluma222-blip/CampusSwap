@@ -137,7 +137,7 @@ export function Messages() {
 
 export function Profile() {
   const { s, A } = useApp()
-  const mine = s.listings.filter((x) => x.sellerId === s.userId)
+  const mine = s.listings.filter((x) => x.sellerId === s.userId && x.status === 'active')
   const me = s.userId ? s.sellers[s.userId] : undefined
   const name = me?.name ?? (s.email ? s.email.split('@')[0] : 'you')
   const init = (name.replace(/[^a-z]/gi, '').slice(0, 2) || 'Me').toUpperCase()

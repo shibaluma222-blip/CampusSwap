@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  acceptPickupRpc, createListing, fetchAll, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
-  removeListing, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread,
+  acceptPickupRpc, confirmHandoverRpc, createListing, fetchAll, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
+  removeListing, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc,
   type MsgRow, type ThreadRow,
 } from './api'
 import { ALLOWED_EMAIL, CATS } from './data'
@@ -27,7 +27,7 @@ export interface State {
   threads: Thread[]
   msgs: Record<number, Msg[]>
   pickup: Pickup // draft shown on the Schedule screen
-  handover: boolean
+  rated: number[] // threads I already rated
   rate: number
   rateTags: string[]
   post: PostDraft
@@ -60,13 +60,13 @@ const initial = (): State => ({
   threads: [],
   msgs: {},
   pickup: { spot: 'Hall Lobby', day: 'Fri', time: '15:00' },
-  handover: false,
+  rated: [],
   rate: 0,
   rateTags: [],
   post: EMPTY_POST,
   listings: [],
   sellers: {},
-  loading: false,
+  loading: true, // true until the first data load finishes, so lists show Loading instead of empty
   posting: false,
 })
 
@@ -113,7 +113,7 @@ export function useAppState() {
       if (!uid) return
       try {
         const d = await fetchThreads(uid)
-        setS((x) => ({ ...x, threads: d.threads, msgs: d.msgs, sellers: { ...x.sellers, ...d.profiles } }))
+        setS((x) => ({ ...x, threads: d.threads, msgs: d.msgs, rated: d.rated, sellers: { ...x.sellers, ...d.profiles } }))
       } catch {
         // transient network errors are retried by the next poll
       }
@@ -278,15 +278,34 @@ export function useAppState() {
         setS((x) => ({ ...x, threads: x.threads.map((i) => (i.id === t.id ? t : i)) }))
       },
 
-      simulateScan() {
-        patch({ handover: true })
-        toast('Seller scanned your QR')
+      async confirmHandover(code: string): Promise<boolean> {
+        const { curThread: tid, userId } = ref.current
+        if (!tid || !userId) return false
+        try {
+          await confirmHandoverRpc(tid, code)
+          await Promise.all([refreshThreads(), loadListings(userId)])
+          toast('Handover confirmed')
+          return true
+        } catch (e) {
+          fail(e, 'Could not confirm handover')
+          return false
+        }
       },
       setRate: (rate: number) => patch({ rate }),
       toggleRateTag: (t: string) => setS((x) => ({ ...x, rateTags: x.rateTags.includes(t) ? x.rateTags.filter((i) => i !== t) : [...x.rateTags, t] })),
-      submitRate() {
-        setS((x) => ({ ...x, rate: 0, rateTags: [], handover: false, hist: [], screen: 'home', sheet: null }))
-        toast('Thanks! Rating submitted')
+      async submitRate(comment: string) {
+        const { curThread: tid, rate, rateTags } = ref.current
+        if (!tid || !rate) return
+        try {
+          await submitRatingRpc(tid, rate, rateTags, comment.trim())
+          setS((x) => ({ ...x, rate: 0, rateTags: [], hist: [], screen: 'home', sheet: null }))
+          toast('Thanks! Rating submitted')
+          await refreshThreads()
+          const uid = ref.current.userId
+          if (uid) await loadListings(uid)
+        } catch (e) {
+          fail(e, 'Could not submit rating')
+        }
       },
       setPost(p: Partial<PostDraft>) {
         setS((x) => {
@@ -399,7 +418,7 @@ export const totalUnread = (s: State) => s.threads.reduce((n, t) => n + unreadOf
 
 export function useFiltered() {
   const { s } = useApp()
-  let r = s.listings.filter((x) => x.type === s.type)
+  let r = s.listings.filter((x) => x.status === 'active' && x.type === s.type)
   if (s.cat !== 'All') r = r.filter((x) => x.cat === s.cat)
   if (s.q) {
     const q = s.q.toLowerCase()

@@ -182,3 +182,9 @@ textarea.ta:focus{border-color:var(--ink)}
 .offer .acts{display:flex;gap:8px;margin-top:10px}
 .offer .acts .btn{height:38px;font-size:14px;border-radius:10px}
 .deal .row{margin-top:2px}
+.scan{position:absolute;inset:0;z-index:30;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:20px 18px 28px;gap:14px}
+.scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan .frame{position:absolute;top:22%;left:50%;width:62%;aspect-ratio:1;transform:translateX(-50%);border:3px solid #fff;border-radius:22px;box-shadow:0 0 0 999px rgba(0,0,0,.45)}
+.scan .msg{position:relative;color:#fff;font-size:14px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.scan .btn{position:relative}
+.codebox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:700;letter-spacing:2px;margin:2px 0 10px}

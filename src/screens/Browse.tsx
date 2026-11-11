@@ -107,7 +107,9 @@ export function Detail() {
         </div>
       </div>
       <div className="footer">
-        {mine ? (
+        {x.status !== 'active' ? (
+          <button className="btn sec" disabled>{x.status === 'sold' ? 'Sold' : 'No longer available'}</button>
+        ) : mine ? (
           <button className="btn sec" onClick={() => A.setSheet('remove')}>Remove my listing</button>
         ) : (
           <button className="btn" onClick={A.startChat}><Icon n="chat" s={20} /> Chat / Make Offer</button>

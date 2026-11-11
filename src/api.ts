@@ -13,6 +13,7 @@ interface ListingRow {
   spots: string[]
   created_at: string
   seller_id: string
+  status: Listing['status']
   listing_photos: { path: string; position: number }[]
 }
 interface ProfileRow {
@@ -29,8 +30,7 @@ export const photoUrl = (path: string) => supabase.storage.from(BUCKET).getPubli
 export async function fetchAll(uid: string) {
   const { data, error } = await supabase
     .from('listings')
-    .select('id,title,price,unit,type,category,condition,description,spots,created_at,seller_id,listing_photos(path,position)')
-    .eq('status', 'active')
+    .select('id,title,price,unit,type,category,condition,description,spots,created_at,seller_id,status,listing_photos(path,position)')
     .order('created_at', { ascending: false })
   if (error) throw error
   const rows = (data ?? []) as unknown as ListingRow[]
@@ -57,6 +57,7 @@ export async function fetchAll(uid: string) {
     d: r.description,
     spots: r.spots,
     createdAt: r.created_at,
+    status: r.status,
     photos: [...r.listing_photos].sort((a, b) => a.position - b.position).map((p) => photoUrl(p.path)),
   }))
   const fav = ((fv.data ?? []) as { listing_id: number }[]).map((f) => f.listing_id)
@@ -141,6 +142,7 @@ export interface ThreadRow {
   buyer_read_at: string
   seller_read_at: string
   created_at: string
+  handover_at: string | null
 }
 
 export const mapMsg = (r: MsgRow): Msg => ({
@@ -168,15 +170,19 @@ export const mapThread = (r: ThreadRow): Thread => ({
   buyerReadAt: r.buyer_read_at,
   sellerReadAt: r.seller_read_at,
   createdAt: r.created_at,
+  handoverAt: r.handover_at ?? undefined,
 })
 
 export async function fetchThreads(uid: string) {
-  const [th, ms] = await Promise.all([
+  const [th, ms, rt] = await Promise.all([
     supabase.from('threads').select('*').order('created_at', { ascending: false }),
     supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(1000),
+    supabase.from('ratings').select('thread_id').eq('rater_id', uid),
   ])
   if (th.error) throw th.error
   if (ms.error) throw ms.error
+  if (rt.error) throw rt.error
+  const rated = ((rt.data ?? []) as { thread_id: number }[]).map((r) => r.thread_id)
   const threads = ((th.data ?? []) as unknown as ThreadRow[]).map(mapThread)
   const msgs: Record<number, Msg[]> = {}
   for (const r of (ms.data ?? []) as unknown as MsgRow[]) (msgs[r.thread_id] ??= []).push(mapMsg(r))
@@ -189,7 +195,7 @@ export async function fetchThreads(uid: string) {
       profiles[p.id] = { name: p.display_name, r: Number(p.rating_avg), n: p.trades_count, hall: p.hall ?? '' }
     }
   }
-  return { threads, msgs, profiles }
+  return { threads, msgs, profiles, rated }
 }
 
 async function rpc<T>(fn: string, args: Record<string, unknown>) {
@@ -215,3 +221,8 @@ export async function sendText(uid: string, threadId: number, body: string) {
   if (error) throw error
   return mapMsg(data as unknown as MsgRow)
 }
+
+export const getHandoverToken = (threadId: number) => rpc<string>('get_handover_token', { p_thread: threadId })
+export const confirmHandoverRpc = (threadId: number, token: string) => rpc<null>('confirm_handover', { p_thread: threadId, p_token: token })
+export const submitRatingRpc = (threadId: number, stars: number, tags: string[], comment: string) =>
+  rpc<null>('submit_rating', { p_thread: threadId, p_stars: stars, p_tags: tags, p_comment: comment })

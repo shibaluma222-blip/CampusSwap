@@ -20,6 +20,7 @@ export interface Listing {
   spots: string[]
   createdAt: string
   photos: string[]
+  status: 'active' | 'sold' | 'removed'
 }
 
 export interface Pickup {
@@ -60,6 +61,7 @@ export interface Thread {
   buyerReadAt: string
   sellerReadAt: string
   createdAt: string
+  handoverAt?: string
 }
 
 export type Screen =

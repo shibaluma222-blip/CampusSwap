@@ -1,0 +1,6 @@
+-- Applied to Supabase project pfpkklpjdpbayiqcqqvl via MCP on 2026-11-11.
+-- handover_tokens: buyer-only secret, RLS on with no policies (only functions can touch it).
+-- get_handover_token (buyer, after pickup accepted) -> 12 hex chars shown as QR "CS1:<thread>:<token>" and as XXXX-XXXX-XXXX.
+-- confirm_handover (seller): checks token, sets thread completed, listing sold, bumps both trades_count, deletes the token.
+-- ratings + submit_rating (buyer rates seller after handover, once per deal, recomputes rating_avg).
+-- listings select policy widened so chat partners still see a listing after it is sold.
