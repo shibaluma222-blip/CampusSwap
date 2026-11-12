@@ -3,6 +3,18 @@ import { isDemoEmail } from '../data'
 import { Icon } from '../icons'
 import { useApp } from '../store'
 
+const KEY = 'cs_otp_sent'
+const COOLDOWN = 30
+const remaining = (): { left: number; email: string } => {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { at: number; email: string } | null
+    if (!v) return { left: 0, email: '' }
+    return { left: Math.max(0, COOLDOWN - Math.floor((Date.now() - v.at) / 1000)), email: v.email }
+  } catch {
+    return { left: 0, email: '' }
+  }
+}
+
 // Must match Supabase Auth > Providers > Email > OTP length
 const OTP_LEN = 8
 
@@ -13,7 +25,17 @@ export function Login() {
   const [pw, setPw] = useState('')
   const [usePw, setUsePw] = useState(false)
   const [sending, setSending] = useState(false)
-  const [wait, setWait] = useState(0)
+  const [wait, setWait] = useState(() => remaining().left)
+
+  // After a refresh, keep the cooldown and go back to the code boxes instead of letting the user request another code.
+  useEffect(() => {
+    const r = remaining()
+    if (r.left > 0 && r.email && !s.otpStage) {
+      setEmail(r.email)
+      patch({ otpStage: true, email: r.email })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const demo = isDemoEmail(email)
   const pwMode = demo || usePw
   const refs = useRef<(HTMLInputElement | null)[]>([])
@@ -26,12 +48,13 @@ export function Login() {
   }, [wait])
 
   const send = async () => {
-    if (sending) return
+    if (sending || wait > 0) return
     setSending(true)
     const ok = await A.sendCode(email)
     setSending(false)
     if (ok) {
-      setWait(30)
+      try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), email: email.trim().toLowerCase() })) } catch { /* private mode */ }
+      setWait(COOLDOWN)
       setDigits(Array(OTP_LEN).fill(''))
     }
   }
@@ -97,10 +120,10 @@ export function Login() {
             </div>
           )}
           {!s.otpStage ? (
-            <button className="btn" style={{ marginTop: 14 }} disabled={sending} onClick={() => (pwMode ? void A.passwordLogin(email, pw) : void send())}>{sending ? 'Sending...' : pwMode ? 'Sign in' : 'Send Code'}</button>
+            <button className="btn" style={{ marginTop: 14 }} disabled={sending || (!pwMode && wait > 0)} onClick={() => (pwMode ? void A.passwordLogin(email, pw) : void send())}>{sending ? 'Sending...' : pwMode ? 'Sign in' : wait > 0 ? `Please wait ${wait}s` : 'Send Code'}</button>
           ) : (
             <>
-              <div className="sub center" style={{ margin: '22px 0 12px' }}>Enter the 8-digit code we sent to your inbox</div>
+              <div className="sub center" style={{ margin: '22px 0 12px' }}>Code sent. It can take 1 to 2 minutes. Enter the 8 digits</div>
               <div className="otp">
                 {digits.map((d, i) => (
                   <input
