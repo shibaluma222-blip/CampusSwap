@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isDemoEmail } from '../data'
 import { Icon } from '../icons'
 import { useApp } from '../store'
@@ -12,9 +12,29 @@ export function Login() {
   const [digits, setDigits] = useState<string[]>(() => Array(OTP_LEN).fill(''))
   const [pw, setPw] = useState('')
   const [usePw, setUsePw] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [wait, setWait] = useState(0)
   const demo = isDemoEmail(email)
   const pwMode = demo || usePw
   const refs = useRef<(HTMLInputElement | null)[]>([])
+
+  // Supabase allows one code per address every ~25 s, so the resend button waits 30 s.
+  useEffect(() => {
+    if (wait <= 0) return
+    const id = window.setTimeout(() => setWait((w) => w - 1), 1000)
+    return () => window.clearTimeout(id)
+  }, [wait])
+
+  const send = async () => {
+    if (sending) return
+    setSending(true)
+    const ok = await A.sendCode(email)
+    setSending(false)
+    if (ok) {
+      setWait(30)
+      setDigits(Array(OTP_LEN).fill(''))
+    }
+  }
 
   const submit = (next: string[]) => {
     if (next.every(Boolean)) {
@@ -62,7 +82,7 @@ export function Login() {
               value={email}
               readOnly={s.otpStage}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !s.otpStage && A.sendCode(email)}
+              onKeyDown={(e) => e.key === 'Enter' && !s.otpStage && !pwMode && void send()}
             />
           </div>
           {s.emailErr && (
@@ -77,7 +97,7 @@ export function Login() {
             </div>
           )}
           {!s.otpStage ? (
-            <button className="btn" style={{ marginTop: 14 }} onClick={() => (pwMode ? void A.passwordLogin(email, pw) : void A.sendCode(email))}>{pwMode ? 'Sign in' : 'Send Code'}</button>
+            <button className="btn" style={{ marginTop: 14 }} disabled={sending} onClick={() => (pwMode ? void A.passwordLogin(email, pw) : void send())}>{sending ? 'Sending...' : pwMode ? 'Sign in' : 'Send Code'}</button>
           ) : (
             <>
               <div className="sub center" style={{ margin: '22px 0 12px' }}>Enter the 8-digit code we sent to your inbox</div>
@@ -98,7 +118,7 @@ export function Login() {
                 ))}
               </div>
               <div className="row" style={{ marginTop: 16, justifyContent: 'center' }}>
-                <button className="sub" style={{ textDecoration: 'underline' }} onClick={() => A.toast('Code resent')}>Resend code</button>
+                <button className="sub" style={{ textDecoration: 'underline' }} disabled={sending || wait > 0} onClick={() => void send()}>{sending ? 'Sending...' : wait > 0 ? `Resend code in ${wait}s` : 'Resend code'}</button>
                 <button className="sub" style={{ textDecoration: 'underline' }} onClick={() => { setDigits(Array(OTP_LEN).fill('')); patch({ otpStage: false }) }}>Change email</button>
               </div>
             </>
@@ -110,7 +130,7 @@ export function Login() {
           )}
           {usePw && !s.otpStage && <div className="hint center">First time, or forgot it? Use an email code, then set a new password in Settings.</div>}
           <div className="hint center" style={{ marginTop: 22 }}>Verified CityU students only.</div>
-          {s.otpStage && <div className="demo">No email? Check your junk folder.</div>}
+          {s.otpStage && <div className="demo">Use the newest email only: each new code replaces the old one. No email? Check your junk folder.</div>}
         </div>
       </div>
     </div>

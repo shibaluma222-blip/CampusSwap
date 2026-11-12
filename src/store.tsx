@@ -90,6 +90,7 @@ const byTime = (a: Msg, b: Msg) => a.createdAt.localeCompare(b.createdAt) || a.i
 export function useAppState() {
   const [s, setS] = useState<State>(initial)
   const ref = useRef(s)
+  const sendingRef = useRef(false)
   useLayoutEffect(() => {
     ref.current = s
   })
@@ -173,18 +174,32 @@ export function useAppState() {
       tab,
       loadData,
       refreshThreads,
-      async sendCode(email: string) {
+      async sendCode(email: string): Promise<boolean> {
         const em = email.trim().toLowerCase()
-        if (!ALLOWED_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
-        setS((x) => ({ ...x, email: em, emailErr: false }))
-        const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
-        if (error) return toast(error.message)
-        setS((x) => ({ ...x, otpStage: true }))
+        if (!ALLOWED_EMAIL.test(em)) {
+          setS((x) => ({ ...x, email: em, emailErr: true }))
+          return false
+        }
+        // One request at a time. Two parallel requests for a new user collide in the database, and each new code replaces the previous one.
+        if (sendingRef.current) return false
+        sendingRef.current = true
+        try {
+          setS((x) => ({ ...x, email: em, emailErr: false }))
+          const { error } = await supabase.auth.signInWithOtp({ email: em, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
+          if (error) {
+            toast(error.message)
+            return false
+          }
+          setS((x) => ({ ...x, otpStage: true }))
+          return true
+        } finally {
+          sendingRef.current = false
+        }
       },
       async verifyCode(email: string, code: string) {
         const { data, error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
         if (error) {
-          toast('Invalid or expired code')
+          toast('Wrong or old code. Only the newest email works')
           return false
         }
         // First time on this account: offer to set a password so the next login needs no email code.
