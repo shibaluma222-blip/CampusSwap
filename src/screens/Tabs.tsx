@@ -21,24 +21,57 @@ export function Post() {
       ))}
     </div>
   )
+  const [tried, setTried] = useState(false)
+  const [neg, setNeg] = useState(false)
+  const editing = s.editId !== null
   const services = p.type === 'services'
+  const errPhoto = !editing && files.length === 0
+  const errTitle = !p.title.trim()
+  const errPrice = !(+p.price > 0)
+  const bad = (on: boolean) => tried && on
+  const submit = () => {
+    if (errPhoto || errTitle || errPrice) {
+      setTried(true)
+      A.toast(errPhoto ? 'Add at least one photo' : errTitle ? 'Add a title' : 'Add a price above 0', true)
+      document.getElementById(errPhoto ? 'f-photo' : errTitle ? 'f-title' : 'f-price')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return
+    }
+    if (editing) void A.saveEdit()
+    else void A.publish(files).then((ok) => ok && (setFiles([]), setTried(false)))
+  }
+  const need = { color: 'var(--ink)', fontWeight: 600 } as const
   return (
     <div className="screen">
-      <div className="top"><h1>New Listing</h1></div>
+      {editing ? (
+        <div className="top">
+          <button className="ib" aria-label="Back" onClick={A.cancelEdit}><Icon n="back" /></button>
+          <h2>Edit Listing</h2>
+          <div style={{ width: 40 }} />
+        </div>
+      ) : (
+        <div className="top"><h1>New Listing</h1></div>
+      )}
       <div className="scroll" style={{ paddingTop: 0 }}>
+        {!editing && (
         <div className="seg" style={{ marginBottom: 14 }}>
           <button className={!services ? 'on' : ''} onClick={() => A.setPost({ type: 'goods' })}>Goods</button>
-          <button className={services ? 'on' : ''} onClick={() => A.setPost({ type: 'services' })}>Service</button>
+          <button className={services ? 'on' : ''} onClick={() => A.setPost({ type: 'services' })}>Services</button>
         </div>
+        )}
+        {editing ? (
+          <div className="hint" style={{ margin: '0 0 6px' }}>Photos cannot be changed yet. Remove the listing and post it again to use new photos.</div>
+        ) : (
+        <>
         <button
+          id="f-photo"
           className="ph"
-          style={{ width: '100%', height: files.length ? 70 : 140, borderRadius: 'var(--r)', border: '1.5px dashed var(--g3)' }}
+          style={{ width: '100%', height: files.length ? 70 : 140, borderRadius: 'var(--r)', border: bad(errPhoto) ? '1.5px dashed var(--ink)' : '1.5px dashed var(--g3)' }}
           onClick={() => input.current?.click()}
           disabled={files.length >= MAX_PHOTOS}
         >
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--g4)', gap: 6 }}>
             <Icon n="cam" s={files.length ? 22 : 30} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{files.length ? `${files.length}/${MAX_PHOTOS} photos` : 'Add photos'}</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{files.length ? `${files.length}/${MAX_PHOTOS} photos` : 'Add photos (required)'}</span>
           </div>
         </button>
         <input
@@ -62,13 +95,28 @@ export function Post() {
             ))}
           </div>
         )}
-        <label className="l">Title</label>
-        <div className="field"><input placeholder={services ? 'e.g. Calculus tutoring' : 'e.g. IKEA desk lamp'} maxLength={80} value={p.title} onChange={(e) => A.setPost({ title: e.target.value })} /></div>
-        <label className="l">Price (HK$)</label>
-        <div className="field">
+        {bad(errPhoto) && <div className="hint" style={need}>Add at least one photo of the item.</div>}
+        </>
+        )}
+        <label className="l">Title *</label>
+        <div id="f-title" className={'field ' + (bad(errTitle) ? 'err' : '')}><input placeholder={services ? 'e.g. Calculus tutoring' : 'e.g. IKEA desk lamp'} maxLength={80} value={p.title} onChange={(e) => A.setPost({ title: e.target.value })} /></div>
+        {bad(errTitle) && <div className="hint" style={need}>Add a title.</div>}
+        <label className="l">Price (HK$) *</label>
+        <div id="f-price" className={'field ' + (bad(errPrice) || neg ? 'err' : '')}>
           <span style={{ color: 'var(--g4)' }}>HK$</span>
-          <input inputMode="numeric" placeholder="0" maxLength={6} value={p.price} onChange={(e) => A.setPost({ price: e.target.value.replace(/\D/g, '') })} />
+          <input
+            inputMode="numeric"
+            placeholder="0"
+            maxLength={7}
+            value={p.price}
+            onChange={(e) => {
+              setNeg(e.target.value.includes('-'))
+              A.setPost({ price: e.target.value.replace(/\D/g, '').replace(/^0+/, '') })
+            }}
+          />
         </div>
+        {neg && <div className="hint" style={need}>Price cannot be negative.</div>}
+        {!neg && bad(errPrice) && <div className="hint" style={need}>Enter a price above 0.</div>}
         {services && (
           <>
             <label className="l">Charged</label>
@@ -83,17 +131,17 @@ export function Post() {
             {chips('cond', ['Like New', 'Good', 'Fair'])}
           </>
         )}
-        <label className="l">Meetup spot</label>
+        <label className="l">Meetup spot *</label>
         {chips('spot', SPOTS.slice(0, 5))}
         <label className="l">Description</label>
         <textarea className="ta" placeholder="Condition, size, reason for selling..." maxLength={2000} value={p.desc} onChange={(e) => A.setPost({ desc: e.target.value })} />
       </div>
       <div className="footer" style={{ border: 0, paddingTop: 6 }}>
-        <button className="btn" disabled={s.posting} onClick={() => void A.publish(files).then((ok) => ok && setFiles([]))}>
-          {s.posting ? 'Posting...' : 'Post Listing'}
+        <button className="btn" disabled={s.posting} onClick={submit}>
+          {s.posting ? (editing ? 'Saving...' : 'Posting...') : editing ? 'Save changes' : 'Post Listing'}
         </button>
       </div>
-      <Tabs active="post" />
+      {!editing && <Tabs active="post" />}
     </div>
   )
 }
@@ -137,7 +185,10 @@ export function Messages() {
 
 export function Profile() {
   const { s, A } = useApp()
-  const mine = s.listings.filter((x) => x.sellerId === s.userId && x.status === 'active')
+  const [hist, setHist] = useState<'active' | 'sold' | 'removed'>('active')
+  const all = s.listings.filter((x) => x.sellerId === s.userId)
+  const mine = all.filter((x) => x.status === 'active')
+  const shown = all.filter((x) => x.status === hist)
   const saved = useSaved()
   const me = s.userId ? s.sellers[s.userId] : undefined
   const name = me?.name ?? (s.email ? s.email.split('@')[0] : 'you')
@@ -160,17 +211,33 @@ export function Profile() {
           <div className="stat"><b>{me && me.n > 0 ? me.r.toFixed(1) : '-'}</b><span>Rating</span></div>
         </div>
         <div className="sec-t">My listings</div>
-        {mine.length ? (
+        <div className="seg" style={{ marginBottom: 12 }}>
+          {(['active', 'sold', 'removed'] as const).map((k) => (
+            <button key={k} className={hist === k ? 'on' : ''} onClick={() => setHist(k)}>
+              {k === 'active' ? 'Active' : k === 'sold' ? 'Sold' : 'Removed'} {all.filter((x) => x.status === k).length}
+            </button>
+          ))}
+        </div>
+        {shown.length ? (
           <div className="grid" style={{ marginTop: 0 }}>
-            {mine.map((x) => (
-              <button key={x.id} className="card" onClick={() => A.openListing(x.id)}>
-                <div className="ph">{x.photos[0] ? <img src={x.photos[0]} alt="" loading="lazy" /> : <ImgPlaceholder />}</div>
-                <div className="b"><div className="t">{x.t}</div><div className="p" style={{ marginBottom: 0 }}>{money(x.p, x.unit)}</div></div>
-              </button>
-            ))}
+            {shown.map((x) => {
+              const deal = x.status === 'sold' ? s.threads.find((t) => t.listingId === x.id && t.status === 'completed') : undefined
+              return (
+                <button key={x.id} className="card" onClick={() => A.openListing(x.id)}>
+                  <div className="ph">{x.photos[0] ? <img src={x.photos[0]} alt="" loading="lazy" /> : <ImgPlaceholder />}</div>
+                  <div className="b">
+                    <div className="t">{x.t}</div>
+                    <div className="p" style={{ marginBottom: 0 }}>{money(deal?.agreed ?? x.p, x.unit)}</div>
+                    {x.status !== 'active' && <span className="tag">{x.status === 'sold' ? 'Sold' : 'Removed'}</span>}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ) : (
-          <div className="hint" style={{ margin: 0 }}>Nothing posted yet. Tap Post to list your first item.</div>
+          <div className="hint" style={{ margin: 0 }}>
+            {hist === 'active' ? 'Nothing posted yet. Tap Post to list your first item.' : hist === 'sold' ? 'Nothing sold yet.' : 'No removed listings.'}
+          </div>
         )}
         <div className="sec-t">Account</div>
         <div className="list">

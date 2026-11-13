@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { money } from './data'
 import { Icon, ImgPlaceholder, type IconName } from './icons'
 import { profileOf, reportTarget, totalUnread, useApp, useFiltered } from './store'
@@ -30,8 +30,8 @@ export function Toast() {
   const { s } = useApp()
   if (!s.toast) return null
   return (
-    <div className="toast">
-      <Icon n="check" s={16} w={2.4} /> {s.toast}
+    <div className={'toast' + (s.toastErr ? ' err' : '')} role="status">
+      <Icon n={s.toastErr ? 'x' : 'check'} s={16} w={2.4} /> {s.toast}
     </div>
   )
 }
@@ -39,7 +39,15 @@ export function Toast() {
 export function ListingGrid() {
   const { s } = useApp()
   const none = !s.listings.some((x) => x.status === 'active')
-  return <CardGrid items={useFiltered()} empty={none ? 'No listings yet. Tap Post to add the first one.' : 'No results. Try removing a filter.'} />
+  const filtered = s.q !== '' || s.F.max < 5000 || s.F.cond.length > 0
+  const empty = none
+    ? 'No listings yet. Tap Post to add the first one.'
+    : filtered
+      ? 'No results. Try a different search or remove a filter.'
+      : s.cat !== 'All'
+        ? `Nothing in ${s.cat} yet.`
+        : `No ${s.type} listed yet.`
+  return <CardGrid items={useFiltered()} empty={empty} />
 }
 
 export function CardGrid({ items: r, empty }: { items: Listing[]; empty: string }) {
@@ -111,7 +119,7 @@ function FilterSheet() {
       </div>
       <div className="row" style={{ marginTop: 24 }}>
         <button className="btn sec" onClick={A.resetFilters}>Reset</button>
-        <button className="btn" onClick={() => A.setSheet(null)}>Show {count} results</button>
+        <button className="btn" onClick={() => A.setSheet(null)}>Show {count} result{count === 1 ? '' : 's'}</button>
       </div>
     </>
   )
@@ -288,6 +296,13 @@ function RemoveSheet() {
 
 export function SheetHost() {
   const { s, A } = useApp()
+  const open = !!s.sheet
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && A.setSheet(null)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, A])
   if (!s.sheet) return null
   return (
     <>

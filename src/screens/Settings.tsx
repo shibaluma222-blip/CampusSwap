@@ -113,16 +113,24 @@ export function EditProfile() {
 }
 
 export function SetPassword() {
-  const { A } = useApp()
+  const { s, A } = useApp()
+  const [cur, setCur] = useState('')
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [busy, setBusy] = useState(false)
-  const ok = pw.length >= 8 && pw === pw2
+  const ok = pw.length >= 8 && pw === pw2 && (!s.hasPw || cur.length > 0)
   return (
     <div className="screen">
       <Header title="Password" />
       <div className="scroll" style={{ paddingTop: 0 }}>
         <div className="hint" style={{ marginTop: 6 }}>Set a password and you can sign in with it next time, with no email code. You can still use an email code any time.</div>
+        {s.hasPw && (
+          <>
+            <label className="l">Current password</label>
+            <div className="field"><input type="password" autoComplete="current-password" placeholder="Your current password" value={cur} onChange={(e) => setCur(e.target.value)} /></div>
+            <div className="hint">Forgot it? Log out, sign in with an email code, then set a new password.</div>
+          </>
+        )}
         <label className="l">New password</label>
         <div className="field"><input type="password" autoComplete="new-password" placeholder="At least 8 characters" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
         <label className="l">Confirm password</label>
@@ -136,13 +144,13 @@ export function SetPassword() {
           disabled={!ok || busy}
           onClick={async () => {
             setBusy(true)
-            if (await A.savePassword(pw)) A.back()
+            if (await A.savePassword(pw, cur)) A.back()
             setBusy(false)
           }}
         >
           Save password
         </button>
-        <button className="sub" style={{ display: 'block', margin: '12px auto 0', textDecoration: 'underline' }} onClick={A.back}>Skip for now</button>
+        {!s.hasPw && <button className="sub" style={{ display: 'block', margin: '12px auto 0', textDecoration: 'underline' }} onClick={A.back}>Skip for now</button>}
       </div>
     </div>
   )

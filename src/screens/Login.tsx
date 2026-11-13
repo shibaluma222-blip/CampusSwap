@@ -104,7 +104,7 @@ export function Login() {
               placeholder="CityU Student Email"
               value={email}
               readOnly={s.otpStage}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); if (s.emailErr) patch({ emailErr: false }) }}
               onKeyDown={(e) => e.key === 'Enter' && !s.otpStage && !pwMode && void send()}
             />
           </div>
@@ -153,7 +153,7 @@ export function Login() {
           )}
           {usePw && !s.otpStage && <div className="hint center">First time, or forgot it? Use an email code, then set a new password in Settings.</div>}
           <div className="hint center" style={{ marginTop: 22 }}>Verified CityU students only.</div>
-          {s.otpStage && <div className="demo">Use the newest email only: each new code replaces the old one. No email? Check your junk folder.</div>}
+          {s.otpStage && <div className="demo">Use the newest code only: each new code replaces the old one. No email? Check your junk folder.</div>}
         </div>
       </div>
     </div>

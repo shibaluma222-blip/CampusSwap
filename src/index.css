@@ -10,7 +10,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,textarea{font:inherit;color:inherit}
 svg{display:block}
 
-#phone{width:390px;height:844px;background:var(--bg);border-radius:46px;border:9px solid #1b1b1d;position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.25)}
+#phone{width:390px;height:min(844px,calc(100dvh - 24px));min-height:560px;background:var(--bg);border-radius:46px;border:9px solid #1b1b1d;position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.25)}
 #status{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 6px;font-size:14px;font-weight:600;flex:none}
 #status .sb{display:flex;gap:5px;align-items:center}
 #view{position:absolute;inset:44px 0 0 0;display:flex;flex-direction:column}
@@ -129,7 +129,7 @@ textarea.ta:focus{border-color:var(--ink)}
 
 /* sheet */
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:20;animation:fade .2s}
-.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;z-index:21;padding:10px 18px max(24px,env(safe-area-inset-bottom));animation:up .25s ease;max-height:88%;overflow:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;z-index:21;padding:10px 18px max(36px,env(safe-area-inset-bottom));animation:up .25s ease;max-height:calc(100% - 16px);overflow:auto;overscroll-behavior:contain}
 .sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--g3);margin:0 auto 14px}
 .sheet h3{font-size:18px;margin-bottom:4px}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
@@ -163,7 +163,8 @@ textarea.ta:focus{border-color:var(--ink)}
 .infocard{display:flex;gap:12px;align-items:center;border:1px solid var(--g2);border-radius:var(--r);padding:14px;text-align:left}
 .infocard small{display:block;font-size:12px;color:var(--g4)}
 .infocard b{font-size:15px}
-.toast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;z-index:40;animation:fade .2s;white-space:nowrap;display:flex;gap:8px;align-items:center}
+.toast{position:absolute;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;z-index:40;animation:fade .2s;white-space:normal;text-align:center;display:flex;gap:8px;align-items:center}
+.toast.err{background:#b42318}
 .dots{display:flex;justify-content:center;gap:6px;margin:12px 0}
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--g3)}
 .dots i.on{background:var(--ink)}

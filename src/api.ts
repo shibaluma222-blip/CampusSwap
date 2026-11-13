@@ -115,6 +115,22 @@ export async function createListing(uid: string, d: PostDraft, files: File[]) {
   return id
 }
 
+export async function updateListing(id: number, d: PostDraft) {
+  const { error } = await supabase
+    .from('listings')
+    .update({
+      title: d.title.trim(),
+      price: Number(d.price),
+      unit: d.type === 'services' && d.unit ? d.unit : null,
+      category: d.cat,
+      condition: d.type === 'services' ? 'Service' : d.cond,
+      description: d.desc.trim(),
+      spots: [d.spot],
+    })
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function removeListing(id: number) {
   const { error } = await supabase.from('listings').update({ status: 'removed' }).eq('id', id)
   if (error) throw error

@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   acceptPickupRpc, blockUser, confirmHandoverRpc, createListing, deleteAccountRpc, fetchAll, fetchReports, fetchThreads, mapMsg, mapThread, markReadRpc, proposePickupRpc,
-  removeListing, resolveReportRpc, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser, updateProfile,
+  removeListing, resolveReportRpc, updateListing, respondOfferRpc, sendOfferRpc, sendText, setFavourite, startThread, submitRatingRpc, submitReportRpc, unblockUser, updateProfile,
   type MsgRow, type ThreadRow,
 } from './api'
 import { ALLOWED_EMAIL, CATS, isDemoEmail } from './data'
+import { parseHash, type Route } from './route'
 import { supabase } from './supabase'
 import type { Filters, InfoKey, Listing, ListingType, Msg, Pickup, PostDraft, Report, ReportReason, Screen, Seller, Sheet, Thread } from './types'
 
@@ -25,6 +26,9 @@ export interface State {
   curThread: number | null // open conversation
   sheet: Sheet
   toast: string | null
+  toastErr: boolean
+  editId: number | null // listing being edited on the Post screen
+  pending: Route | null // address opened from a link, applied after sign in
   threads: Thread[]
   msgs: Record<number, Msg[]>
   pickup: Pickup // draft shown on the Schedule screen
@@ -64,6 +68,9 @@ const initial = (): State => ({
   curThread: null,
   sheet: null,
   toast: null,
+  toastErr: false,
+  editId: null,
+  pending: (() => { const r = parseHash(window.location.hash); return r && r.screen === 'home' ? null : r ?? { screen: 'notfound' } })(),
   threads: [],
   msgs: {},
   pickup: { spot: 'Hall Lobby', day: 'Fri', time: '15:00' },
@@ -101,8 +108,8 @@ export function useAppState() {
   const patch = useCallback((p: Partial<State>) => setS((x) => ({ ...x, ...p })), [])
 
   const A = useMemo(() => {
-    const toast = (t: string) => {
-      setS((x) => ({ ...x, toast: t }))
+    const toast = (t: string, err = false) => {
+      setS((x) => ({ ...x, toast: t, toastErr: err }))
       clearTimeout(toastTimer.current)
       toastTimer.current = window.setTimeout(() => setS((x) => ({ ...x, toast: null })), 2200)
     }
@@ -114,15 +121,16 @@ export function useAppState() {
         sheet: null,
       }))
     const back = () => setS((x) => ({ ...x, screen: x.hist[x.hist.length - 1] ?? 'home', hist: x.hist.slice(0, -1), sheet: null }))
-    const tab = (screen: Screen) => setS((x) => ({ ...x, hist: [], screen, sheet: null }))
-    const fail = (e: unknown, fallback = 'Something went wrong') => toast(errText(e, fallback))
+    const tab = (screen: Screen) => setS((x) => ({ ...x, hist: [], screen, sheet: null, editId: null, post: x.editId ? EMPTY_POST : x.post }))
+    const fail = (e: unknown, fallback = 'Something went wrong') => toast(errText(e, fallback), true)
 
     const loadListings = async (uid: string) => {
       const d = await fetchAll(uid)
       setS((x) => ({ ...x, listings: d.listings, sellers: { ...x.sellers, ...d.sellers }, fav: d.fav, blocked: d.blocked }))
     }
-    const refreshThreads = async () => {
-      const uid = ref.current.userId
+    const refreshThreads = async (userId?: string) => {
+      // loadData passes the id itself: right after sign in the ref can still hold the old (null) user.
+      const uid = userId ?? ref.current.userId
       if (!uid) return
       try {
         const d = await fetchThreads(uid)
@@ -144,7 +152,7 @@ export function useAppState() {
     const loadData = async (uid: string) => {
       setS((x) => ({ ...x, loading: true }))
       try {
-        await Promise.all([loadListings(uid), refreshThreads()])
+        await Promise.all([loadListings(uid), refreshThreads(uid)])
       } catch (e) {
         fail(e, 'Could not load listings')
       }
@@ -199,43 +207,55 @@ export function useAppState() {
       async verifyCode(email: string, code: string) {
         const { data, error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'email' })
         if (error) {
-          toast('Wrong or old code. Only the newest email works')
+          toast('Wrong or old code. Only the newest code works', true)
           return false
         }
         // First time on this account: offer to set a password so the next login needs no email code.
         const needPw = !data.user?.user_metadata?.has_pw && !isDemoEmail(email)
-        setS((x) => ({ ...x, otpStage: false, hist: needPw ? ['home'] : [], screen: needPw ? 'password' : 'home' }))
+        setS((x) => ({ ...x, otpStage: false, emailErr: false, hist: needPw ? ['home'] : [], screen: needPw ? 'password' : x.screen === 'login' ? 'home' : x.screen }))
         toast('Verified. Welcome to CampusSwap')
         return true
       },
       async passwordLogin(email: string, password: string) {
         const em = email.trim().toLowerCase()
         if (!ALLOWED_EMAIL.test(em)) return setS((x) => ({ ...x, email: em, emailErr: true }))
+        setS((x) => ({ ...x, emailErr: false }))
+        if (!password) return toast('Enter your password', true)
         const { error } = await supabase.auth.signInWithPassword({ email: em, password })
-        if (error) return toast('Wrong email or password')
-        setS((x) => ({ ...x, email: em, hist: [], screen: 'home' }))
+        if (error) return toast('Wrong email or password', true)
+        setS((x) => ({ ...x, email: em, hist: [], screen: x.screen === 'login' ? 'home' : x.screen }))
       },
-      async savePassword(password: string): Promise<boolean> {
+      async savePassword(password: string, current = ''): Promise<boolean> {
+        // Changing an existing password needs the current one, so a borrowed unlocked phone cannot overwrite it.
+        if (ref.current.hasPw) {
+          const { error: e1 } = await supabase.auth.signInWithPassword({ email: ref.current.email, password: current })
+          if (e1) {
+            toast('Current password is wrong', true)
+            return false
+          }
+        }
         const { error } = await supabase.auth.updateUser({ password, data: { has_pw: true } })
         if (error) {
-          toast(error.message)
+          toast(error.message, true)
           return false
         }
+        setS((x) => ({ ...x, hasPw: true }))
         toast('Password saved. You can sign in with it next time')
         return true
       },
       logout() {
         void supabase.auth.signOut()
-        setS(() => initial())
+        setS(() => ({ ...initial(), pending: null }))
       },
       toggleFav(id: number) {
         const { userId, fav } = ref.current
         if (!userId) return
+        if (ref.current.listings.find((l) => l.id === id)?.sellerId === userId) return toast('You cannot save your own listing', true)
         const on = !fav.includes(id)
         setS((x) => ({ ...x, fav: on ? [...x.fav, id] : x.fav.filter((i) => i !== id) }))
         setFavourite(userId, id, on).catch(() => {
           setS((x) => ({ ...x, fav: on ? x.fav.filter((i) => i !== id) : [...x.fav, id] }))
-          toast('Could not update favourites')
+          toast('Could not update favourites', true)
         })
       },
       openListing(id: number) {
@@ -275,7 +295,7 @@ export function useAppState() {
       async sendOffer(raw: string) {
         const tid = ref.current.curThread
         const v = parseInt(raw)
-        if (!tid || !v || v <= 0) return toast('Enter a valid amount')
+        if (!tid || !v || v <= 0) return toast('Enter a valid amount', true)
         patch({ sheet: null })
         try {
           await sendOfferRpc(tid, v)
@@ -333,6 +353,7 @@ export function useAppState() {
           await confirmHandoverRpc(tid, code)
           await Promise.all([refreshThreads(), loadListings(userId)])
           toast('Handover confirmed')
+          setS((x) => (x.rated.includes(tid) ? x : { ...x, hist: [...x.hist, x.screen], screen: 'rate', sheet: null }))
           return true
         } catch (e) {
           fail(e, 'Could not confirm handover')
@@ -369,8 +390,12 @@ export function useAppState() {
       async publish(files: File[]): Promise<boolean> {
         const { post: p, userId } = ref.current
         if (!userId) return false
-        if (!p.title.trim() || !+p.price) {
-          toast('Add a title and price')
+        if (!p.title.trim() || !(+p.price > 0)) {
+          toast('Add a title and a price above 0', true)
+          return false
+        }
+        if (!files.length) {
+          toast('Add at least one photo', true)
           return false
         }
         setS((x) => ({ ...x, posting: true }))
@@ -386,10 +411,39 @@ export function useAppState() {
           return false
         }
       },
+      startEdit(id: number) {
+        const l = ref.current.listings.find((i) => i.id === id)
+        if (!l) return
+        setS((x) => ({
+          ...x,
+          editId: id,
+          post: { title: l.t, price: String(l.p), type: l.type, unit: l.unit ?? '', cat: l.cat, cond: l.cond, spot: l.spots[0] ?? 'Hall Lobby', desc: l.d },
+        }))
+        go('post')
+      },
+      cancelEdit() {
+        setS((x) => ({ ...x, editId: null, post: EMPTY_POST }))
+        back()
+      },
+      async saveEdit(): Promise<void> {
+        const { post: p, editId, userId } = ref.current
+        if (!editId || !userId) return
+        if (!p.title.trim() || !(+p.price > 0)) return toast('Add a title and a price above 0', true)
+        setS((x) => ({ ...x, posting: true }))
+        try {
+          await updateListing(editId, p)
+          await loadListings(userId)
+          setS((x) => ({ ...x, posting: false, editId: null, post: EMPTY_POST, screen: 'detail', hist: x.hist.slice(0, -1), sheet: null }))
+          toast('Listing updated')
+        } catch (e) {
+          setS((x) => ({ ...x, posting: false }))
+          fail(e, 'Could not update listing')
+        }
+      },
       async removeListing(id: number) {
         try {
           await removeListing(id)
-          setS((x) => ({ ...x, listings: x.listings.filter((l) => l.id !== id), hist: [], screen: 'home' }))
+          setS((x) => ({ ...x, listings: x.listings.map((l) => (l.id === id ? { ...l, status: 'removed' as const } : l)), hist: [], screen: 'home', sheet: null }))
           toast('Listing removed')
         } catch (e) {
           fail(e, 'Could not remove listing')
@@ -481,6 +535,9 @@ export function useAppState() {
         clearTimeout(toastTimer.current)
         toastTimer.current = window.setTimeout(() => setS((x) => ({ ...x, toast: null })), 2500)
       },
+      route(r: Route) {
+        setS((x) => (x.userId ? { ...x, screen: r.screen, cur: r.cur ?? x.cur, curThread: r.thread ?? x.curThread, hist: [], sheet: null, editId: null } : { ...x, pending: r.screen === 'home' ? null : r }))
+      },
       setType: (type: ListingType) => patch({ type, cat: 'All' }),
       resetFilters: () => patch({ F: DEFAULT_FILTERS }),
     }
@@ -495,7 +552,10 @@ export function useAppState() {
         userId: u?.id ?? null,
         hasPw: !!u?.user_metadata?.has_pw,
         email: u?.email ?? x.email,
-        screen: u && x.screen === 'login' ? 'home' : x.screen,
+        screen: u && x.screen === 'login' ? (x.pending?.screen ?? 'home') : x.screen,
+        cur: u && x.screen === 'login' && x.pending?.cur ? x.pending.cur : x.cur,
+        curThread: u && x.screen === 'login' && x.pending?.thread ? x.pending.thread : x.curThread,
+        pending: u ? null : x.pending,
       }))
       // defer: supabase calls must not run inside the auth callback
       if (u) window.setTimeout(() => void A.loadData(u.id), 0)

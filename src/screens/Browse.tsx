@@ -58,7 +58,17 @@ export function Detail() {
   const { s, A } = useApp()
   const [pi, setPi] = useState(0)
   const x = s.listings.find((l) => l.id === s.cur)
-  if (!x) return null
+  if (!x) {
+    return (
+      <div className="screen">
+        <div className="top"><button className="ib" aria-label="Back" onClick={A.back}><Icon n="back" /></button><div style={{ flex: 1 }} /></div>
+        <div className="empty">{s.loading ? 'Loading...' : 'This listing is not available. It may have been removed.'}</div>
+        {!s.loading && <div className="footer"><button className="btn" onClick={() => A.tab('home')}>Go to Home</button></div>}
+      </div>
+    )
+  }
+  const deal = s.threads.find((t) => t.listingId === x.id && t.status === 'completed')
+  const sold = x.status === 'sold'
   const seller = sellerOf(s, x)
   const fav = s.fav.includes(x.id)
   const mine = x.sellerId === s.userId
@@ -67,9 +77,11 @@ export function Detail() {
       <div className="top">
         <button className="ib" aria-label="Back" onClick={A.back}><Icon n="back" /></button>
         <div style={{ flex: 1 }} />
-        <button className="ib" aria-label="Save" style={fav ? { color: '#111' } : undefined} onClick={() => A.toggleFav(x.id)}>
-          <Icon n="heart" s={22} f={fav ? 'currentColor' : 'none'} />
-        </button>
+        {!mine && (
+          <button className="ib" aria-label="Save" style={fav ? { color: '#111' } : undefined} onClick={() => A.toggleFav(x.id)}>
+            <Icon n="heart" s={22} f={fav ? 'currentColor' : 'none'} />
+          </button>
+        )}
         {!mine && <button className="ib" aria-label="More" onClick={() => A.setSheet('report')}><Icon n="more" /></button>}
       </div>
       <div className="scroll">
@@ -83,7 +95,18 @@ export function Detail() {
           <span className="tag">{ago(x.createdAt)}</span>
         </div>
         <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: '-.4px', lineHeight: 1.2 }}>{x.t}</div>
-        <div style={{ fontSize: 26, fontWeight: 800, margin: '6px 0 16px' }}>{money(x.p, x.unit)}</div>
+        <div style={{ fontSize: 26, fontWeight: 800, margin: '6px 0 16px' }}>
+          {sold && deal?.agreed != null && deal.agreed !== x.p ? (
+            <>{money(deal.agreed, x.unit)} <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--g4)', textDecoration: 'line-through' }}>{money(x.p, x.unit)}</span></>
+          ) : (
+            money(x.p, x.unit)
+          )}
+        </div>
+        {x.status !== 'active' && (
+          <div className="hint" style={{ margin: '-6px 0 14px', color: 'var(--ink)', fontWeight: 700 }}>
+            {sold ? `SOLD${deal?.handoverAt ? ' on ' + new Date(deal.handoverAt).toLocaleDateString() : ''}` : 'REMOVED'}
+          </div>
+        )}
         <div className="seller">
           <div className="av">{initials(seller.name)}</div>
           <div style={{ flex: 1 }}>
@@ -94,8 +117,12 @@ export function Detail() {
             <div style={{ marginTop: 6 }}><span className="tag"><Icon n="shield" s={13} /> CityU Verified</span></div>
           </div>
         </div>
-        <div className="sec-t">Description</div>
-        <div style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--g5)' }}>{x.d}</div>
+        {x.d.trim() && (
+          <>
+            <div className="sec-t">Description</div>
+            <div style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--g5)' }}>{x.d}</div>
+          </>
+        )}
         <div className="sec-t">Meetup spots</div>
         <div className="chips wrap">
           {x.spots.map((p) => (
@@ -108,9 +135,12 @@ export function Detail() {
       </div>
       <div className="footer">
         {x.status !== 'active' ? (
-          <button className="btn sec" disabled>{x.status === 'sold' ? 'Sold' : 'No longer available'}</button>
+          <button className="btn sec" disabled>{sold ? 'Sold' : 'No longer available'}</button>
         ) : mine ? (
-          <button className="btn sec" onClick={() => A.setSheet('remove')}>Remove my listing</button>
+          <div className="row">
+            <button className="btn sec" onClick={() => A.setSheet('remove')}>Remove</button>
+            <button className="btn" onClick={() => A.startEdit(x.id)}>Edit listing</button>
+          </div>
         ) : (
           <button className="btn" onClick={A.startChat}><Icon n="chat" s={20} /> Chat / Make Offer</button>
         )}

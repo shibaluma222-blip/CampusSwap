@@ -54,12 +54,13 @@ function StatusCard() {
   const first = partner?.name.split(' ')[0] ?? 'them'
   const p = t.pickup
   if (t.status === 'completed') {
-    const canRate = t.buyerId === s.userId && !s.rated.includes(t.id)
+    const canRate = !s.rated.includes(t.id)
     return (
       <div className="deal">
         <small>Deal complete</small>
         <b>{money(t.agreed ?? x.p, x.unit)}</b>
-        {canRate && <button className="btn sm" onClick={() => A.go('rate')}><Icon n="star" s={16} /> Rate Seller</button>}
+        {canRate && <button className="btn sm" onClick={() => A.go('rate')}><Icon n="star" s={16} /> {t.buyerId === s.userId ? 'Rate Seller' : 'Rate Buyer'}</button>}
+        {!canRate && <div className="sub" style={{ marginTop: 6 }}>You rated this deal.</div>}
       </div>
     )
   }
@@ -248,6 +249,13 @@ export function Confirm() {
   const [busy, setBusy] = useState(false)
   const tid = t?.id
   const done = t?.status === 'completed'
+  // The buyer's phone learns about the completed handover from realtime: open the rating screen right away.
+  const wasDone = useRef(done)
+  const rated = tid != null && s.rated.includes(tid)
+  useEffect(() => {
+    if (done && !wasDone.current && !rated) A.go('rate')
+    wasDone.current = done
+  }, [done, rated, A])
 
   useEffect(() => {
     if (!tid || !iAmBuyer || done) return
@@ -321,8 +329,8 @@ export function Confirm() {
         </div>
       </div>
       <div className="footer">
-        {done && iAmBuyer && !s.rated.includes(t.id) ? (
-          <button className="btn" onClick={() => A.go('rate')}>Rate Seller</button>
+        {done && !s.rated.includes(t.id) ? (
+          <button className="btn" onClick={() => A.go('rate')}>{iAmBuyer ? 'Rate Seller' : 'Rate Buyer'}</button>
         ) : (
           <button className="btn sec" onClick={A.back}>Back to chat</button>
         )}
@@ -334,15 +342,16 @@ export function Confirm() {
 
 export function Rate() {
   const { s, A } = useApp()
-  const { x, partner } = useDeal()
+  const { x, partner, iAmBuyer } = useDeal()
   const [comment, setComment] = useState('')
   if (!x || !partner) return null
-  const tags = ['On time', 'As described', 'Friendly', 'Easy handover', 'Fair price']
+  const role = iAmBuyer ? 'Seller' : 'Buyer'
+  const tags = iAmBuyer ? ['On time', 'As described', 'Friendly', 'Easy handover', 'Fair price'] : ['On time', 'Friendly', 'Easy handover', 'Paid as agreed', 'Respectful']
   return (
     <div className="screen">
       <div className="top">
         <button className="ib" aria-label="Back" onClick={A.back}><Icon n="back" /></button>
-        <h2>Rate Seller</h2>
+        <h2>Rate {role}</h2>
         <div style={{ width: 40 }} />
       </div>
       <div className="scroll center">

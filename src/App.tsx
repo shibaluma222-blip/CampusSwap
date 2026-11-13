@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { SheetHost, Toast } from './components'
+import { hashFor, parseHash } from './route'
 import { Detail, Home } from './screens/Browse'
 import { Chat, Confirm, Rate, Schedule } from './screens/Deal'
 import { Admin } from './screens/Admin'
@@ -26,10 +28,33 @@ const SCREENS: Record<Screen, () => ReactNode> = {
   editProfile: EditProfile,
   password: SetPassword,
   info: Info,
+  notfound: NotFound,
+}
+
+function NotFound() {
+  const { A } = useApp()
+  return (
+    <div className="screen">
+      <div className="top"><h1>Page not found</h1></div>
+      <div className="empty">This page does not exist.</div>
+      <div className="footer"><button className="btn" onClick={() => A.tab('home')}>Go to Home</button></div>
+    </div>
+  )
 }
 
 function Shell() {
-  const { s } = useApp()
+  const { s, A } = useApp()
+  // Keep the address bar in step with the screen so links and refresh work.
+  useEffect(() => {
+    if (!s.userId || s.editId !== null) return
+    const h = hashFor(s.screen, s.cur, s.curThread)
+    if (h && h !== (window.location.hash || '#/')) window.history.pushState(null, '', h)
+  }, [s.userId, s.screen, s.cur, s.curThread, s.editId])
+  useEffect(() => {
+    const onPop = () => A.route(parseHash(window.location.hash) ?? { screen: 'notfound' })
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [A])
   const Current = SCREENS[s.screen]
   return (
     <div id="phone">

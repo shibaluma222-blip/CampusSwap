@@ -21,7 +21,8 @@ export const now = () => {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 
-export const ALLOWED_EMAIL = /^[^@\s]+@((my\.)?cityu\.edu\.hk|demo\.campusswap\.test)$/
+// Lower-case input only (callers lowercase first). Local part: letters, digits and . _ + - , 1 to 40 chars.
+export const ALLOWED_EMAIL = /^[a-z0-9][a-z0-9._+-]{0,39}@((my\.)?cityu\.edu\.hk|demo\.campusswap\.test)$/
 export const isDemoEmail = (e: string) => e.trim().toLowerCase().endsWith('@demo.campusswap.test')
 
 export const ago = (iso: string) => {

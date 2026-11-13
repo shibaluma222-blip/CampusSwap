@@ -82,6 +82,7 @@ export type Screen =
   | 'editProfile'
   | 'password'
   | 'info'
+  | 'notfound'
 
 export type Sheet = 'filter' | 'offer' | 'report' | 'reportReason' | 'block' | 'blocked' | 'remove' | 'deleteAccount' | null
 
