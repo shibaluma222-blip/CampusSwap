@@ -185,7 +185,7 @@ export function Messages() {
 
 export function Profile() {
   const { s, A } = useApp()
-  const [hist, setHist] = useState<'active' | 'sold' | 'removed'>('active')
+  const [hist, setHist] = useState<'active' | 'sold'>('active')
   const all = s.listings.filter((x) => x.sellerId === s.userId)
   const mine = all.filter((x) => x.status === 'active')
   const shown = all.filter((x) => x.status === hist)
@@ -212,9 +212,9 @@ export function Profile() {
         </div>
         <div className="sec-t">My listings</div>
         <div className="seg" style={{ marginBottom: 12 }}>
-          {(['active', 'sold', 'removed'] as const).map((k) => (
+          {(['active', 'sold'] as const).map((k) => (
             <button key={k} className={hist === k ? 'on' : ''} onClick={() => setHist(k)}>
-              {k === 'active' ? 'Active' : k === 'sold' ? 'Sold' : 'Removed'} {all.filter((x) => x.status === k).length}
+              {k === 'active' ? 'Active' : 'Sold'} {all.filter((x) => x.status === k).length}
             </button>
           ))}
         </div>
@@ -228,7 +228,7 @@ export function Profile() {
                   <div className="b">
                     <div className="t">{x.t}</div>
                     <div className="p" style={{ marginBottom: 0 }}>{money(deal?.agreed ?? x.p, x.unit)}</div>
-                    {x.status !== 'active' && <span className="tag">{x.status === 'sold' ? 'Sold' : 'Removed'}</span>}
+                    {x.status === 'sold' && <span className="tag">Sold</span>}
                   </div>
                 </button>
               )
@@ -236,7 +236,7 @@ export function Profile() {
           </div>
         ) : (
           <div className="hint" style={{ margin: 0 }}>
-            {hist === 'active' ? 'Nothing posted yet. Tap Post to list your first item.' : hist === 'sold' ? 'Nothing sold yet.' : 'No removed listings.'}
+            {hist === 'active' ? 'Nothing posted yet. Tap Post to list your first item.' : 'Nothing sold yet.'}
           </div>
         )}
         <div className="sec-t">Account</div>
